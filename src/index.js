@@ -43,5 +43,5 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-client.once('ready', () => console.log(`✅ ${client.user.tag} 온라인`));
+client.once('clientReady', () => console.log(`✅ ${client.user.tag} 온라인`));
 client.login(DISCORD_TOKEN);
