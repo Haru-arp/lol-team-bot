@@ -26,6 +26,7 @@ function requireEnv(name) {
 }
 
 module.exports = {
+  CURRENT_SEASON_START: cleanEnv('CURRENT_SEASON_START'),
   DISCORD_TOKEN: requireEnv('DISCORD_TOKEN'),
   RIOT_API_KEY: requireEnv('RIOT_API_KEY'),
   SUPABASE_URL: requireEnv('SUPABASE_URL'),

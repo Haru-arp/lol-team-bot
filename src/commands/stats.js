@@ -36,10 +36,16 @@ module.exports = {
 
     try {
       await message.reply('🔍 전적 조회 중...');
-      const stats = await analyzer.analyzePlayer(puuid, { tierOverride });
+      const stats = await analyzer.analyzePlayer(puuid, {
+        tierOverride,
+        includeSeasonTopChampions: true,
+      });
       const laneStr = Object.entries(stats.laneStats).sort((a, b) => b[1] - a[1]).map(([l, p]) => `${l} ${p}%`).join(', ');
       const topChampions = stats.topChampions.length
-        ? stats.topChampions.map((champion, index) => `${index + 1}. ${champion.name} (${champion.count}판)`).join('\n')
+        ? stats.topChampions.map((champion, index) => `${index + 1}. ${champion.name} (숙련도 ${champion.points.toLocaleString()}점)`).join('\n')
+        : '없음';
+      const seasonTopChampions = stats.seasonTopChampions.length
+        ? stats.seasonTopChampions.map((champion, index) => `${index + 1}. ${champion.name} (${champion.count}판)`).join('\n')
         : '없음';
       const tierLabel = formatTierDisplay(stats, { includeLp: stats.tierSource !== 'manual' });
 
@@ -52,7 +58,8 @@ module.exports = {
           { name: '📈 승률', value: `${stats.winRate}%`, inline: true },
           { name: '⚔️ 평균 KDA', value: `${stats.avgKDA}`, inline: true },
           { name: '🗺️ 라인 분포', value: laneStr || '없음' },
-          { name: '🏆 모스트 챔피언', value: topChampions },
+          { name: '🏆 전체 모스트', value: topChampions, inline: true },
+          { name: '📅 이번 시즌 모스트', value: seasonTopChampions, inline: true },
           { name: '🎯 플레이 스타일', value: STYLE_EMOJI[stats.playStyle] || stats.playStyle },
           { name: '📊 종합 점수', value: `${stats.score}`, inline: true },
         );

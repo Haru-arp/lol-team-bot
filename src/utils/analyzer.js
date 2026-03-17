@@ -1,12 +1,26 @@
 const riot = require('../riot');
+const { CURRENT_SEASON_START } = require('../config');
 const { DIV_BONUS, TIER_POINTS, resolveTierInfo } = require('./tier');
 const LANE_MAP = { TOP: 'TOP', JUNGLE: 'JG', MIDDLE: 'MID', BOTTOM: 'ADC', UTILITY: 'SUP' };
 
+function getSeasonStartTimestamp() {
+  if (CURRENT_SEASON_START) {
+    const parsed = Date.parse(CURRENT_SEASON_START);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  const now = new Date();
+  return Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
+}
+
 async function analyzePlayer(puuid, options = {}) {
-  const [matchIds, rankData, mastery] = await Promise.all([
+  const [matchIds, rankData, mastery, championNameMap] = await Promise.all([
     riot.getMatchIds(puuid),
     riot.getRankByPuuid(puuid),
     riot.getChampionMastery(puuid),
+    riot.getChampionNameMap(),
   ]);
 
   const matches = (await Promise.all((matchIds || []).map(id => riot.getMatch(id)))).filter(Boolean);
@@ -17,7 +31,6 @@ async function analyzePlayer(puuid, options = {}) {
     if (!p) return null;
     return {
       lane: LANE_MAP[p.teamPosition] || p.teamPosition,
-      championName: p.championName,
       kills: p.kills, deaths: p.deaths, assists: p.assists,
       win: p.win,
       totalDamageDealt: p.totalDamageDealtToChampions,
@@ -35,15 +48,34 @@ async function analyzePlayer(puuid, options = {}) {
   }
   const mainLane = Object.entries(laneCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'MID';
 
-  const championCounts = {};
-  stats.forEach((s) => {
-    if (!s.championName) return;
-    championCounts[s.championName] = (championCounts[s.championName] || 0) + 1;
-  });
-  const topChampions = Object.entries(championCounts)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  const topChampions = (mastery || [])
     .slice(0, 3)
-    .map(([name, count]) => ({ name, count }));
+    .map((champion) => ({
+      name: championNameMap?.[champion.championId] || `ID ${champion.championId}`,
+      masteryLevel: champion.championLevel,
+      points: champion.championPoints,
+    }));
+
+  let seasonTopChampions = [];
+  if (options.includeSeasonTopChampions) {
+    const seasonMatchIds = await riot.getMatchIds(puuid, {
+      count: options.seasonMatchCount ?? 100,
+      startTime: Math.floor(getSeasonStartTimestamp() / 1000),
+    });
+    const seasonMatches = (await Promise.all((seasonMatchIds || []).map((id) => riot.getMatch(id)))).filter(Boolean);
+    const seasonChampionCounts = {};
+
+    seasonMatches.forEach((match) => {
+      const participant = match.info.participants.find((player) => player.puuid === puuid);
+      if (!participant?.championName) return;
+      seasonChampionCounts[participant.championName] = (seasonChampionCounts[participant.championName] || 0) + 1;
+    });
+
+    seasonTopChampions = Object.entries(seasonChampionCounts)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([name, count]) => ({ name, count }));
+  }
 
   // KDA & win rate
   const totals = stats.reduce((a, s) => ({
@@ -77,6 +109,7 @@ async function analyzePlayer(puuid, options = {}) {
     tier, rank, lp, mainLane, laneStats,
     tierSource,
     topChampions,
+    seasonTopChampions,
     avgKDA, winRate, playStyle, score,
   };
 }
