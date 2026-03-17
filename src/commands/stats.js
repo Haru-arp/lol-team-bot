@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const supabase = require('../supabase');
+const riot = require('../riot');
 const analyzer = require('../utils/analyzer');
 const {
   getPrimaryAccountByDiscordId,
@@ -20,14 +20,11 @@ module.exports = {
       const parsed = parseRiotIdInput(args.join(' '));
       if (!parsed) return message.reply('❌ 형식: `!전적 소환사명#태그`');
 
-      const { data } = await supabase
-        .from('users')
-        .select('puuid, riot_id')
-        .eq('riot_id', parsed.riotId)
-        .maybeSingle();
-      if (!data) return message.reply('❌ 등록되지 않은 소환사입니다. 먼저 `!연동`을 해주세요.');
-      puuid = data.puuid;
-      riotId = data.riot_id;
+      const account = await riot.getAccountByRiotId(parsed.gameName, parsed.tagLine);
+      if (!account) return message.reply('❌ 해당 Riot 계정을 찾을 수 없습니다.');
+
+      puuid = account.puuid;
+      riotId = `${account.gameName || parsed.gameName}#${account.tagLine || parsed.tagLine}`;
       tierOverride = await getTierOverrideByPuuid(puuid);
     } else {
       const account = await getPrimaryAccountByDiscordId(message.author.id);
@@ -41,6 +38,9 @@ module.exports = {
       await message.reply('🔍 전적 조회 중...');
       const stats = await analyzer.analyzePlayer(puuid, { tierOverride });
       const laneStr = Object.entries(stats.laneStats).sort((a, b) => b[1] - a[1]).map(([l, p]) => `${l} ${p}%`).join(', ');
+      const topChampions = stats.topChampions.length
+        ? stats.topChampions.map((champion, index) => `${index + 1}. ${champion.name} (${champion.count}판)`).join('\n')
+        : '없음';
       const tierLabel = formatTierDisplay(stats, { includeLp: stats.tierSource !== 'manual' });
 
       const embed = new EmbedBuilder()
@@ -52,6 +52,7 @@ module.exports = {
           { name: '📈 승률', value: `${stats.winRate}%`, inline: true },
           { name: '⚔️ 평균 KDA', value: `${stats.avgKDA}`, inline: true },
           { name: '🗺️ 라인 분포', value: laneStr || '없음' },
+          { name: '🏆 모스트 챔피언', value: topChampions },
           { name: '🎯 플레이 스타일', value: STYLE_EMOJI[stats.playStyle] || stats.playStyle },
           { name: '📊 종합 점수', value: `${stats.score}`, inline: true },
         );

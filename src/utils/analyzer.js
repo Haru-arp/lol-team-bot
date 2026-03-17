@@ -17,6 +17,7 @@ async function analyzePlayer(puuid, options = {}) {
     if (!p) return null;
     return {
       lane: LANE_MAP[p.teamPosition] || p.teamPosition,
+      championName: p.championName,
       kills: p.kills, deaths: p.deaths, assists: p.assists,
       win: p.win,
       totalDamageDealt: p.totalDamageDealtToChampions,
@@ -33,6 +34,16 @@ async function analyzePlayer(puuid, options = {}) {
     laneStats[lane] = Math.round((cnt / total) * 100);
   }
   const mainLane = Object.entries(laneCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'MID';
+
+  const championCounts = {};
+  stats.forEach((s) => {
+    if (!s.championName) return;
+    championCounts[s.championName] = (championCounts[s.championName] || 0) + 1;
+  });
+  const topChampions = Object.entries(championCounts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 3)
+    .map(([name, count]) => ({ name, count }));
 
   // KDA & win rate
   const totals = stats.reduce((a, s) => ({
@@ -65,7 +76,7 @@ async function analyzePlayer(puuid, options = {}) {
   return {
     tier, rank, lp, mainLane, laneStats,
     tierSource,
-    topChampions: (mastery || []).map(m => m.championId),
+    topChampions,
     avgKDA, winRate, playStyle, score,
   };
 }
