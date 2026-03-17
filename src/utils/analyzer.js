@@ -37,6 +37,15 @@ async function getSeasonSoloRankedMatchIds(puuid, startTime, maxMatches = 100) {
   return ids;
 }
 
+async function getRecentSoloRankedMatchIds(puuid, maxMatches = 100) {
+  const ids = await riot.getMatchIds(puuid, {
+    count: maxMatches,
+    queue: RANKED_SOLO_QUEUE_ID,
+  });
+
+  return ids || [];
+}
+
 async function analyzePlayer(puuid, options = {}) {
   const [matchIds, rankData, mastery, championNameMap] = await Promise.all([
     riot.getMatchIds(puuid),
@@ -91,14 +100,16 @@ async function analyzePlayer(puuid, options = {}) {
 
   let seasonTopChampions = [];
   let seasonMatchCount = 0;
-  let hasRecentSoloRankedMatches = false;
   if (options.includeSeasonTopChampions) {
     const seasonStartTime = Math.floor(getSeasonStartTimestamp() / 1000);
-    const seasonMatchIds = await getSeasonSoloRankedMatchIds(
+    let seasonMatchIds = await getSeasonSoloRankedMatchIds(
       puuid,
       seasonStartTime,
       options.seasonMatchCount ?? 100,
     );
+    if (!seasonMatchIds.length) {
+      seasonMatchIds = await getRecentSoloRankedMatchIds(puuid, options.seasonMatchCount ?? 100);
+    }
     seasonMatchCount = seasonMatchIds.length;
     const seasonMatches = (await Promise.all((seasonMatchIds || []).map((id) => riot.getMatch(id)))).filter(Boolean);
     const seasonChampionCounts = {};
@@ -113,14 +124,6 @@ async function analyzePlayer(puuid, options = {}) {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 3)
       .map(([name, count]) => ({ name, count }));
-
-    if (!seasonMatchCount) {
-      const recentSoloRankedMatchIds = await riot.getMatchIds(puuid, {
-        count: 20,
-        queue: RANKED_SOLO_QUEUE_ID,
-      });
-      hasRecentSoloRankedMatches = Boolean(recentSoloRankedMatchIds?.length);
-    }
   }
 
   // KDA & win rate
@@ -158,7 +161,6 @@ async function analyzePlayer(puuid, options = {}) {
     recentTopChampions,
     seasonTopChampions,
     seasonMatchCount,
-    hasRecentSoloRankedMatches,
     avgKDA, winRate, playStyle, score,
   };
 }
