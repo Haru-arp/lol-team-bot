@@ -51,6 +51,56 @@ function lobbyButtons(hostId) {
   );
 }
 
+function buildBanRecommendations(team, opponent, playerMap) {
+  const championScores = new Map();
+
+  const addCandidate = (championName, points, reason) => {
+    if (!championName || points <= 0) return;
+    const current = championScores.get(championName) || { score: 0, reasons: [] };
+    current.score += points;
+    if (reason && current.reasons.length < 3 && !current.reasons.includes(reason)) {
+      current.reasons.push(reason);
+    }
+    championScores.set(championName, current);
+  };
+
+  opponent.forEach((player) => {
+    const detail = playerMap.get(player.discordId);
+    if (!detail) return;
+
+    detail.recentTopChampions.forEach((champion, index) => {
+      const base = [7, 5, 3][index] || 2;
+      const volume = Math.min(champion.count, 8) * 0.8;
+      addCandidate(champion.name, base + volume, `${detail.riotId} 최근 ${champion.count}판`);
+    });
+
+    detail.topChampions.forEach((champion, index) => {
+      const base = [5, 3.5, 2][index] || 1;
+      const masteryWeight = Math.min(Math.log10((champion.points || 1) + 1), 6);
+      addCandidate(champion.name, base + masteryWeight, `${detail.riotId} 숙련도 ${champion.points.toLocaleString()}점`);
+    });
+
+    if (detail.playStyle === 'carry') {
+      const primaryRecent = detail.recentTopChampions[0]?.name;
+      if (primaryRecent) {
+        addCandidate(primaryRecent, 2, `${detail.riotId} 캐리 성향`);
+      }
+    }
+  });
+
+  const teamChampionPool = new Set(team.flatMap((player) => {
+    const detail = playerMap.get(player.discordId);
+    return detail?.recentTopChampions.map((champion) => champion.name) || [];
+  }));
+
+  return [...championScores.entries()]
+    .sort((a, b) => b[1].score - a[1].score || a[0].localeCompare(b[0]))
+    .filter(([championName]) => !teamChampionPool.has(championName))
+    .slice(0, 5)
+    .map(([championName, info], index) => `${index + 1}. ${championName} (${info.reasons.join(', ')})`)
+    .join('\n') || '추천 데이터 없음';
+}
+
 module.exports = {
   name: '내전',
   activeLobbies,
@@ -125,13 +175,18 @@ module.exports = {
           mainLane: pref?.primary_lane || analysis.mainLane,
           subLane: pref?.secondary_lane || null,
           playStyle: analysis.playStyle,
+          recentTopChampions: analysis.recentTopChampions,
+          topChampions: analysis.topChampions,
         };
       }));
 
       const result = matchmaker.findOptimalTeams(players);
       const userMap = new Map(users.map((user) => [user.discord_id, user]));
+      const playerMap = new Map(players.map((player) => [player.discordId, player]));
 
       const formatTeam = (team) => team.map((player) => formatTeamMember(player, userMap)).join('\n');
+      const blueBanRecommendations = buildBanRecommendations(result.team1, result.team2, playerMap);
+      const redBanRecommendations = buildBanRecommendations(result.team2, result.team1, playerMap);
 
       const resultEmbed = new EmbedBuilder()
         .setColor(0x00ff00)
@@ -140,6 +195,8 @@ module.exports = {
         .addFields(
           { name: '🔵 블루팀', value: formatTeam(result.team1) || '없음', inline: true },
           { name: '🔴 레드팀', value: formatTeam(result.team2) || '없음', inline: true },
+          { name: '🔵 블루팀 추천 밴', value: blueBanRecommendations, inline: false },
+          { name: '🔴 레드팀 추천 밴', value: redBanRecommendations, inline: false },
         );
 
       await interaction.editReply({ content: null, embeds: [resultEmbed], components: [] });

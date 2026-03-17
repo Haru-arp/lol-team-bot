@@ -16,7 +16,7 @@ function getSeasonStartTimestamp() {
   return Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
 }
 
-async function getSeasonSoloRankedMatchIds(puuid, startTime, maxMatches = 300) {
+async function getSeasonSoloRankedMatchIds(puuid, startTime, maxMatches = 100) {
   const pageSize = 100;
   const maxPages = Math.ceil(maxMatches / pageSize);
   const ids = [];
@@ -53,6 +53,7 @@ async function analyzePlayer(puuid, options = {}) {
     if (!p) return null;
     return {
       lane: LANE_MAP[p.teamPosition] || p.teamPosition,
+      championName: p.championName,
       kills: p.kills, deaths: p.deaths, assists: p.assists,
       win: p.win,
       totalDamageDealt: p.totalDamageDealtToChampions,
@@ -70,6 +71,16 @@ async function analyzePlayer(puuid, options = {}) {
   }
   const mainLane = Object.entries(laneCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'MID';
 
+  const recentChampionCounts = {};
+  stats.forEach((s) => {
+    if (!s.championName) return;
+    recentChampionCounts[s.championName] = (recentChampionCounts[s.championName] || 0) + 1;
+  });
+  const recentTopChampions = Object.entries(recentChampionCounts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 3)
+    .map(([name, count]) => ({ name, count }));
+
   const topChampions = (mastery || [])
     .slice(0, 3)
     .map((champion) => ({
@@ -86,7 +97,7 @@ async function analyzePlayer(puuid, options = {}) {
     const seasonMatchIds = await getSeasonSoloRankedMatchIds(
       puuid,
       seasonStartTime,
-      options.seasonMatchCount ?? 300,
+      options.seasonMatchCount ?? 100,
     );
     seasonMatchCount = seasonMatchIds.length;
     const seasonMatches = (await Promise.all((seasonMatchIds || []).map((id) => riot.getMatch(id)))).filter(Boolean);
@@ -144,6 +155,7 @@ async function analyzePlayer(puuid, options = {}) {
     tier, rank, lp, mainLane, laneStats,
     tierSource,
     topChampions,
+    recentTopChampions,
     seasonTopChampions,
     seasonMatchCount,
     hasRecentSoloRankedMatches,
