@@ -64,7 +64,7 @@ module.exports = {
       }, { onConflict: 'puuid' });
       if (error) throw error;
 
-      return message.reply(`✅ **${account.riot_id}** 계정의 수동 티어를 **${formatTierDisplay(parsed)}** 로 저장했습니다.`);
+      return message.reply(`✅ **${account.riot_id}** 계정의 수동 티어를 **${formatTierDisplay(parsed, { includeLp: false })}** 로 저장했습니다.`);
     } catch (error) {
       console.error(error);
       return message.reply('❌ 티어 설정에 실패했습니다.');

@@ -41,7 +41,7 @@ module.exports = {
       await message.reply('🔍 전적 조회 중...');
       const stats = await analyzer.analyzePlayer(puuid, { tierOverride });
       const laneStr = Object.entries(stats.laneStats).sort((a, b) => b[1] - a[1]).map(([l, p]) => `${l} ${p}%`).join(', ');
-      const tierLabel = formatTierDisplay(stats);
+      const tierLabel = formatTierDisplay(stats, { includeLp: stats.tierSource !== 'manual' });
 
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)

@@ -78,7 +78,7 @@ function findOptimalTeams(players) {
     const allStyles = new Set([...Object.keys(s1), ...Object.keys(s2)]);
     const stylePenalty = [...allStyles].reduce((sum, s) => sum + Math.abs((s1[s] || 0) - (s2[s] || 0)), 0);
 
-    const totalScore = teamDiff * 2 + laneDiff * 1 + stylePenalty;
+    const totalScore = teamDiff * 5 + laneDiff * 2 + stylePenalty;
 
     if (totalScore < bestScore) {
       bestScore = totalScore;

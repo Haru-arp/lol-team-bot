@@ -72,9 +72,23 @@ function getDefaultDivision(tier) {
   return APEX_TIERS.has(tier) ? 'I' : 'IV';
 }
 
+function splitCombinedTierToken(input) {
+  if (!input) return { tierText: null, divisionText: null };
+  const text = input.trim();
+  const match = text.match(/^(.*?)(IV|III|II|I|[1-4])$/i);
+  if (!match) {
+    return { tierText: text, divisionText: null };
+  }
+
+  return {
+    tierText: match[1].trim(),
+    divisionText: match[2].trim(),
+  };
+}
+
 function parseTierSettingArgs(args) {
   if (!args.length) {
-    return { error: '❌ 형식: `!티어세팅 [소환사명#태그] [티어] [티어구간] [LP]` 또는 `!티어세팅 해제`' };
+    return { error: '❌ 형식: `!티어세팅 [소환사명#태그] 골드2` 또는 `!티어세팅 해제`' };
   }
 
   const firstHashIndex = args.findIndex((arg) => arg.includes('#'));
@@ -87,7 +101,7 @@ function parseTierSettingArgs(args) {
   }
 
   if (!tierArgs.length) {
-    return { error: '❌ 형식: `!티어세팅 [소환사명#태그] [티어] [티어구간] [LP]` 또는 `!티어세팅 해제`' };
+    return { error: '❌ 형식: `!티어세팅 [소환사명#태그] 골드2` 또는 `!티어세팅 해제`' };
   }
 
   const action = tierArgs[0].trim().toLowerCase();
@@ -95,23 +109,26 @@ function parseTierSettingArgs(args) {
     return { riotIdInput, reset: true };
   }
 
-  const tier = normalizeTier(tierArgs[0]);
+  const combined = splitCombinedTierToken(tierArgs[0]);
+  const tier = normalizeTier(combined.tierText);
   if (!tier || tier === 'UNRANKED') {
-    return { error: '❌ 티어는 아이언~챌린저 범위로 입력하세요. 예: `!티어세팅 골드 2 50`' };
+    return { error: '❌ 티어는 아이언~챌린저 범위로 입력하세요. 예: `!티어세팅 골드2`' };
   }
 
-  let rank = normalizeDivision(tierArgs[1]);
-  let lpIndex = 2;
+  let rank = normalizeDivision(combined.divisionText);
+  let consumedArgs = 1;
+
+  if (!rank && tierArgs[1]) {
+    rank = normalizeDivision(tierArgs[1]);
+    if (rank) consumedArgs = 2;
+  }
 
   if (!rank) {
     rank = getDefaultDivision(tier);
-    lpIndex = 1;
   }
 
-  const lpRaw = tierArgs[lpIndex];
-  const lp = lpRaw == null ? 0 : Number.parseInt(lpRaw, 10);
-  if (!Number.isInteger(lp) || lp < 0 || lp > 999) {
-    return { error: '❌ LP는 0~999 사이 숫자로 입력하세요.' };
+  if (tierArgs.length > consumedArgs) {
+    return { error: '❌ LP 입력은 제거되었습니다. 예: `!티어세팅 골드2` 또는 `!티어세팅 골드 2`' };
   }
 
   return {
@@ -119,7 +136,7 @@ function parseTierSettingArgs(args) {
     reset: false,
     tier,
     rank,
-    lp,
+    lp: 0,
   };
 }
 
@@ -173,9 +190,13 @@ async function listTierOverridesByPuuids(puuids) {
   return data || [];
 }
 
-function formatTierDisplay({ tier, rank, lp }) {
+function formatTierDisplay({ tier, rank, lp }, options = {}) {
   if (!tier || tier === 'UNRANKED') {
     return 'UNRANKED';
+  }
+
+  if (options.includeLp === false) {
+    return `${tier} ${rank}`;
   }
 
   return `${tier} ${rank} (${lp}LP)`;
