@@ -14,24 +14,34 @@ async function getOrCreateVC(guild, name, category) {
     || guild.channels.create({ name, type: ChannelType.GuildVoice, parent: category.id });
 }
 
-async function moveTeamsToVoice(guild, team1, team2) {
+async function prepareTeamVoiceChannels(guild) {
   const category = await getOrCreateCategory(guild);
   const [blueVC, redVC] = await Promise.all([
     getOrCreateVC(guild, BLUE, category),
     getOrCreateVC(guild, RED, category),
   ]);
 
+  return { blueVC, redVC, category };
+}
+
+async function moveTeamsToVoice(guild, team1, team2, channels = null) {
+  const { blueVC, redVC, category } = channels || await prepareTeamVoiceChannels(guild);
+
+  let movedCount = 0;
   const move = async (team, vc) => {
     for (const { discordId } of team) {
       try {
         const member = await guild.members.fetch(discordId);
-        if (member.voice.channel) await member.voice.setChannel(vc);
+        if (member.voice.channel) {
+          await member.voice.setChannel(vc);
+          movedCount += 1;
+        }
       } catch (e) { console.error(`${discordId} 이동 실패:`, e.message); }
     }
   };
 
   await Promise.all([move(team1, blueVC), move(team2, redVC)]);
-  return { blueVC, redVC, category };
+  return { blueVC, redVC, category, movedCount };
 }
 
 async function cleanup(blueVC, redVC, category) {
@@ -42,4 +52,4 @@ async function cleanup(blueVC, redVC, category) {
   } catch (e) { console.error('정리 실패:', e.message); }
 }
 
-module.exports = { moveTeamsToVoice, cleanup };
+module.exports = { prepareTeamVoiceChannels, moveTeamsToVoice, cleanup };

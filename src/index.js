@@ -13,10 +13,13 @@ const client = new Client({
 });
 
 const commands = new Map();
-const cmdFiles = ['link', 'accounts', 'primary', 'unlink', 'stats', 'inhouse', 'lane', 'result', 'ranking'];
+const cmdFiles = ['help', 'link', 'accounts', 'primary', 'unlink', 'stats', 'inhouse', 'teamtest', 'voicetest', 'lane', 'result', 'ranking'];
 for (const file of cmdFiles) {
   const cmd = require(`./commands/${file}`);
   commands.set(cmd.name, cmd);
+  for (const alias of cmd.aliases || []) {
+    commands.set(alias, cmd);
+  }
 }
 
 const PREFIX = '!';

@@ -6,6 +6,31 @@ const voice = require('../utils/voice');
 
 // guildId -> { hostId, participants: Map<userId, user>, messageId }
 const activeLobbies = new Map();
+const VOICE_MOVE_DELAY_MS = 10_000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatTeamMember(player, userMap) {
+  const riotId = userMap.get(player.discordId)?.riot_id || player.discordId;
+  return `**${player.assignedLane}** - <@${player.discordId}> (${riotId})`;
+}
+
+function formatVoiceTeamList(team, userMap) {
+  return team.map((player) => formatTeamMember(player, userMap)).join('\n');
+}
+
+function buildVoiceCountdownMessage(blueVC, redVC, team1, team2, userMap, secondsLeft) {
+  return [
+    `🔊 음성 채널을 준비했습니다. **${secondsLeft}초 뒤** 각각 ${blueVC} / ${redVC} 로 이동합니다.`,
+    '미리 아무 음성 채널에 들어가 있어야 이동됩니다.',
+    '',
+    `🔵 블루팀\n${formatVoiceTeamList(team1, userMap)}`,
+    '',
+    `🔴 레드팀\n${formatVoiceTeamList(team2, userMap)}`,
+  ].join('\n');
+}
 
 function lobbyEmbed(lobby) {
   const list = [...lobby.participants.values()].map((u, i) => `${i + 1}. ${u.displayName}`).join('\n') || '없음';
@@ -101,11 +126,9 @@ module.exports = {
       }));
 
       const result = matchmaker.findOptimalTeams(players);
+      const userMap = new Map(users.map((user) => [user.discord_id, user]));
 
-      const formatTeam = (team) => team.map((p) => {
-        const user = users.find(u => u.discord_id === p.discordId);
-        return `**${p.assignedLane}** - ${user?.riot_id || p.discordId}`;
-      }).join('\n');
+      const formatTeam = (team) => team.map((player) => formatTeamMember(player, userMap)).join('\n');
 
       const resultEmbed = new EmbedBuilder()
         .setColor(0x00ff00)
@@ -131,8 +154,28 @@ module.exports = {
 
       activeLobbies.delete(interaction.guild.id);
 
-      // Move to voice channels
-      voice.moveTeamsToVoice(interaction.guild, result.team1, result.team2).catch(console.error);
+      const channels = await voice.prepareTeamVoiceChannels(interaction.guild);
+      const countdownMessage = await interaction.followUp({
+        content: buildVoiceCountdownMessage(channels.blueVC, channels.redVC, result.team1, result.team2, userMap, VOICE_MOVE_DELAY_MS / 1000),
+        fetchReply: true,
+      });
+
+      for (let secondsLeft = (VOICE_MOVE_DELAY_MS / 1000) - 1; secondsLeft >= 1; secondsLeft -= 1) {
+        await sleep(1000);
+        await countdownMessage.edit({
+          content: buildVoiceCountdownMessage(channels.blueVC, channels.redVC, result.team1, result.team2, userMap, secondsLeft),
+        });
+      }
+
+      await sleep(1000);
+      await countdownMessage.edit({
+        content: `🔊 ${channels.blueVC} / ${channels.redVC} 로 지금 이동합니다...`,
+      });
+
+      const moveResult = await voice.moveTeamsToVoice(interaction.guild, result.team1, result.team2, channels);
+      await countdownMessage.edit({
+        content: `✅ 팀 이동을 시도했습니다. 현재 음성 채널에 접속해 있던 **${moveResult.movedCount}명**을 ${channels.blueVC} / ${channels.redVC} 로 이동했습니다.`,
+      });
     }
   },
 };
