@@ -15,6 +15,27 @@ function getSeasonStartTimestamp() {
   return Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
 }
 
+async function getSeasonRankedMatchIds(puuid, startTime, maxMatches = 300) {
+  const pageSize = 100;
+  const maxPages = Math.ceil(maxMatches / pageSize);
+  const ids = [];
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const batch = await riot.getMatchIds(puuid, {
+      start: page * pageSize,
+      count: Math.min(pageSize, maxMatches - ids.length),
+      startTime,
+      type: 'ranked',
+    });
+
+    if (!batch?.length) break;
+    ids.push(...batch);
+    if (batch.length < pageSize || ids.length >= maxMatches) break;
+  }
+
+  return ids;
+}
+
 async function analyzePlayer(puuid, options = {}) {
   const [matchIds, rankData, mastery, championNameMap] = await Promise.all([
     riot.getMatchIds(puuid),
@@ -57,11 +78,16 @@ async function analyzePlayer(puuid, options = {}) {
     }));
 
   let seasonTopChampions = [];
+  let seasonMatchCount = 0;
+  let hasRecentRankedMatches = false;
   if (options.includeSeasonTopChampions) {
-    const seasonMatchIds = await riot.getMatchIds(puuid, {
-      count: options.seasonMatchCount ?? 100,
-      startTime: Math.floor(getSeasonStartTimestamp() / 1000),
-    });
+    const seasonStartTime = Math.floor(getSeasonStartTimestamp() / 1000);
+    const seasonMatchIds = await getSeasonRankedMatchIds(
+      puuid,
+      seasonStartTime,
+      options.seasonMatchCount ?? 300,
+    );
+    seasonMatchCount = seasonMatchIds.length;
     const seasonMatches = (await Promise.all((seasonMatchIds || []).map((id) => riot.getMatch(id)))).filter(Boolean);
     const seasonChampionCounts = {};
 
@@ -75,6 +101,11 @@ async function analyzePlayer(puuid, options = {}) {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 3)
       .map(([name, count]) => ({ name, count }));
+
+    if (!seasonMatchCount) {
+      const recentRankedMatchIds = await riot.getMatchIds(puuid, { count: 20, type: 'ranked' });
+      hasRecentRankedMatches = Boolean(recentRankedMatchIds?.length);
+    }
   }
 
   // KDA & win rate
@@ -110,6 +141,8 @@ async function analyzePlayer(puuid, options = {}) {
     tierSource,
     topChampions,
     seasonTopChampions,
+    seasonMatchCount,
+    hasRecentRankedMatches,
     avgKDA, winRate, playStyle, score,
   };
 }

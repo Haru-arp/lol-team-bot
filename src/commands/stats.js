@@ -46,7 +46,9 @@ module.exports = {
         : '없음';
       const seasonTopChampions = stats.seasonTopChampions.length
         ? stats.seasonTopChampions.map((champion, index) => `${index + 1}. ${champion.name} (${champion.count}판)`).join('\n')
-        : '없음';
+        : stats.hasRecentRankedMatches
+          ? '집계 시즌 기준 확인 필요'
+          : '랭크 전적 없음';
       const tierLabel = formatTierDisplay(stats, { includeLp: stats.tierSource !== 'manual' });
 
       const embed = new EmbedBuilder()
