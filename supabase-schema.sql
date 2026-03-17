@@ -1,15 +1,22 @@
--- 1. 유저 연동 (글로벌)
+create extension if not exists pgcrypto;
+
+-- 1. 유저 연동 (1인 N계정 + 대표 계정 1개)
 create table users (
-  discord_id text primary key,
-  riot_id text not null,
+  id uuid default gen_random_uuid() primary key,
+  discord_id text not null,
+  riot_id text not null unique,
   puuid text not null unique,
   summoner_name text,
+  is_primary boolean not null default false,
   created_at timestamptz default now()
 );
 
+create index idx_users_discord_id on users(discord_id);
+create unique index idx_users_primary_per_discord on users(discord_id) where is_primary;
+
 -- 2. 라인 선호도
 create table lane_preferences (
-  discord_id text primary key references users(discord_id),
+  discord_id text primary key,
   primary_lane text not null,
   secondary_lane text,
   updated_at timestamptz default now()

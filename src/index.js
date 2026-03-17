@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
+const { DISCORD_TOKEN } = require('./config');
 
 const client = new Client({
   intents: [
@@ -12,7 +13,7 @@ const client = new Client({
 });
 
 const commands = new Map();
-const cmdFiles = ['link', 'stats', 'inhouse', 'lane', 'result', 'ranking'];
+const cmdFiles = ['link', 'accounts', 'primary', 'unlink', 'stats', 'inhouse', 'lane', 'result', 'ranking'];
 for (const file of cmdFiles) {
   const cmd = require(`./commands/${file}`);
   commands.set(cmd.name, cmd);
@@ -40,4 +41,4 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.once('ready', () => console.log(`✅ ${client.user.tag} 온라인`));
-client.login(process.env.DISCORD_TOKEN);
+client.login(DISCORD_TOKEN);

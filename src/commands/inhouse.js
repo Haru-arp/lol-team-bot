@@ -72,10 +72,14 @@ module.exports = {
       await interaction.editReply({ content: '🔍 전적 분석 중... 잠시만 기다려주세요.', embeds: [], components: [] });
 
       const ids = [...lobby.participants.keys()];
-      const { data: users } = await supabase.from('users').select('discord_id, puuid, riot_id').in('discord_id', ids);
+      const { data: users } = await supabase
+        .from('users')
+        .select('discord_id, puuid, riot_id')
+        .in('discord_id', ids)
+        .eq('is_primary', true);
 
       if (!users || users.length < 10) {
-        return interaction.editReply({ content: '❌ 모든 참가자가 `!연동`을 완료해야 합니다.' });
+        return interaction.editReply({ content: '❌ 모든 참가자가 `!연동`을 완료하고 대표 계정을 설정해야 합니다.' });
       }
 
       // Fetch lane preferences

@@ -1,26 +1,36 @@
 const { EmbedBuilder } = require('discord.js');
 const supabase = require('../supabase');
 const analyzer = require('../utils/analyzer');
+const {
+  getPrimaryAccountByDiscordId,
+  parseRiotIdInput,
+} = require('../utils/accounts');
 
 const STYLE_EMOJI = { carry: '🗡️ 캐리형', tank: '🛡️ 탱커형', support: '🤝 팀플형' };
 
 module.exports = {
   name: '전적',
   async execute(message, args) {
-    let puuid, riotId;
+    let puuid;
+    let riotId;
 
     if (args.length) {
-      const [gameName, tagLine] = args.join(' ').split('#');
-      if (!tagLine) return message.reply('❌ 형식: `!전적 소환사명#태그`');
-      const { data } = await supabase.from('users').select('puuid, riot_id').eq('riot_id', `${gameName}#${tagLine}`).single();
+      const parsed = parseRiotIdInput(args.join(' '));
+      if (!parsed) return message.reply('❌ 형식: `!전적 소환사명#태그`');
+
+      const { data } = await supabase
+        .from('users')
+        .select('puuid, riot_id')
+        .eq('riot_id', parsed.riotId)
+        .maybeSingle();
       if (!data) return message.reply('❌ 등록되지 않은 소환사입니다. 먼저 `!연동`을 해주세요.');
       puuid = data.puuid;
       riotId = data.riot_id;
     } else {
-      const { data } = await supabase.from('users').select('puuid, riot_id').eq('discord_id', message.author.id).single();
-      if (!data) return message.reply('❌ 먼저 `!연동`으로 계정을 등록하세요.');
-      puuid = data.puuid;
-      riotId = data.riot_id;
+      const account = await getPrimaryAccountByDiscordId(message.author.id);
+      if (!account) return message.reply('❌ 먼저 `!연동`으로 계정을 등록하고 `!대표` 계정을 설정하세요.');
+      puuid = account.puuid;
+      riotId = account.riot_id;
     }
 
     try {
