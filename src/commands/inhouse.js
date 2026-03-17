@@ -3,6 +3,7 @@ const supabase = require('../supabase');
 const analyzer = require('../utils/analyzer');
 const matchmaker = require('../utils/matchmaker');
 const voice = require('../utils/voice');
+const { listTierOverridesByPuuids } = require('../utils/tier');
 
 // guildId -> { hostId, participants: Map<userId, user>, messageId }
 const activeLobbies = new Map();
@@ -110,10 +111,12 @@ module.exports = {
       // Fetch lane preferences
       const { data: lanePrefs } = await supabase.from('lane_preferences').select('*').in('discord_id', ids);
       const prefMap = new Map((lanePrefs || []).map(p => [p.discord_id, p]));
+      const tierOverrides = await listTierOverridesByPuuids(users.map((user) => user.puuid));
+      const tierOverrideMap = new Map(tierOverrides.map((override) => [override.puuid, override]));
 
       // Analyze all players
       const players = await Promise.all(users.map(async (u) => {
-        const analysis = await analyzer.analyzePlayer(u.puuid);
+        const analysis = await analyzer.analyzePlayer(u.puuid, { tierOverride: tierOverrideMap.get(u.puuid) });
         const pref = prefMap.get(u.discord_id);
         return {
           discordId: u.discord_id,

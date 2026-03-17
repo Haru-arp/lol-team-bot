@@ -14,7 +14,16 @@ create table users (
 create index idx_users_discord_id on users(discord_id);
 create unique index idx_users_primary_per_discord on users(discord_id) where is_primary;
 
--- 2. 라인 선호도
+-- 2. 계정별 수동 티어 보정
+create table tier_overrides (
+  puuid text primary key,
+  tier text not null,
+  rank text not null,
+  lp int not null default 0,
+  updated_at timestamptz default now()
+);
+
+-- 3. 라인 선호도
 create table lane_preferences (
   discord_id text primary key,
   primary_lane text not null,
@@ -22,7 +31,7 @@ create table lane_preferences (
   updated_at timestamptz default now()
 );
 
--- 3. 내전 기록 (서버별)
+-- 4. 내전 기록 (서버별)
 create table matches (
   id uuid default gen_random_uuid() primary key,
   guild_id text not null,
@@ -34,7 +43,7 @@ create table matches (
 
 create index idx_matches_guild on matches(guild_id);
 
--- 4. 서버별 유저 통계
+-- 5. 서버별 유저 통계
 create table server_stats (
   discord_id text not null,
   guild_id text not null,
@@ -43,7 +52,7 @@ create table server_stats (
   primary key (discord_id, guild_id)
 );
 
--- 5. RPC 함수: 승리 기록
+-- 6. RPC 함수: 승리 기록
 create or replace function increment_wins(p_discord_id text, p_guild_id text)
 returns void as $$
 begin
@@ -54,7 +63,7 @@ begin
 end;
 $$ language plpgsql;
 
--- 6. RPC 함수: 패배 기록
+-- 7. RPC 함수: 패배 기록
 create or replace function increment_losses(p_discord_id text, p_guild_id text)
 returns void as $$
 begin

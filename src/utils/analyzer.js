@@ -1,10 +1,8 @@
 const riot = require('../riot');
-
-const TIER_POINTS = { IRON: 1, BRONZE: 2, SILVER: 3, GOLD: 4, PLATINUM: 5, EMERALD: 6, DIAMOND: 7, MASTER: 8, GRANDMASTER: 9, CHALLENGER: 10 };
-const DIV_BONUS = { I: 0.75, II: 0.5, III: 0.25, IV: 0 };
+const { DIV_BONUS, TIER_POINTS, resolveTierInfo } = require('./tier');
 const LANE_MAP = { TOP: 'TOP', JUNGLE: 'JG', MIDDLE: 'MID', BOTTOM: 'ADC', UTILITY: 'SUP' };
 
-async function analyzePlayer(puuid) {
+async function analyzePlayer(puuid, options = {}) {
   const [matchIds, rankData, mastery] = await Promise.all([
     riot.getMatchIds(puuid),
     riot.getRankByPuuid(puuid),
@@ -55,19 +53,18 @@ async function analyzePlayer(puuid) {
   else if (dmgRatio < 0.8) playStyle = 'tank';
 
   // Rank info
-  const tier = rankData?.tier || 'IRON';
-  const rank = rankData?.rank || 'IV';
-  const lp = rankData?.leaguePoints || 0;
+  const { tier, rank, lp, tierSource } = resolveTierInfo(rankData, options.tierOverride);
 
   // Score calculation
-  const tierPts = (TIER_POINTS[tier] || 1) + (DIV_BONUS[rank] || 0);
+  const tierPts = (TIER_POINTS[tier] ?? 0) + (DIV_BONUS[rank] || 0);
   const laneProficiency = (laneCounts[mainLane] || 0) / total;
   const champPoolDepth = Math.min((mastery || []).length / 5, 1);
 
-  const score = +(tierPts * 0.4 + (winRate / 100) * 0.25 + laneProficiency * 0.2 + champPoolDepth * 0.15).toFixed(2);
+  const score = +(tierPts * 0.4 + laneProficiency * 0.2 + champPoolDepth * 0.15).toFixed(2);
 
   return {
     tier, rank, lp, mainLane, laneStats,
+    tierSource,
     topChampions: (mastery || []).map(m => m.championId),
     avgKDA, winRate, playStyle, score,
   };

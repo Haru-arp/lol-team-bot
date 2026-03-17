@@ -5,6 +5,7 @@ const {
   getPrimaryAccountByDiscordId,
   parseRiotIdInput,
 } = require('../utils/accounts');
+const { formatTierDisplay, getTierOverrideByPuuid } = require('../utils/tier');
 
 const STYLE_EMOJI = { carry: '🗡️ 캐리형', tank: '🛡️ 탱커형', support: '🤝 팀플형' };
 
@@ -13,6 +14,7 @@ module.exports = {
   async execute(message, args) {
     let puuid;
     let riotId;
+    let tierOverride;
 
     if (args.length) {
       const parsed = parseRiotIdInput(args.join(' '));
@@ -26,23 +28,26 @@ module.exports = {
       if (!data) return message.reply('❌ 등록되지 않은 소환사입니다. 먼저 `!연동`을 해주세요.');
       puuid = data.puuid;
       riotId = data.riot_id;
+      tierOverride = await getTierOverrideByPuuid(puuid);
     } else {
       const account = await getPrimaryAccountByDiscordId(message.author.id);
       if (!account) return message.reply('❌ 먼저 `!연동`으로 계정을 등록하고 `!대표` 계정을 설정하세요.');
       puuid = account.puuid;
       riotId = account.riot_id;
+      tierOverride = await getTierOverrideByPuuid(puuid);
     }
 
     try {
       await message.reply('🔍 전적 조회 중...');
-      const stats = await analyzer.analyzePlayer(puuid);
+      const stats = await analyzer.analyzePlayer(puuid, { tierOverride });
       const laneStr = Object.entries(stats.laneStats).sort((a, b) => b[1] - a[1]).map(([l, p]) => `${l} ${p}%`).join(', ');
+      const tierLabel = formatTierDisplay(stats);
 
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
         .setTitle(`📊 ${riotId}`)
         .addFields(
-          { name: '🏅 티어', value: `${stats.tier} ${stats.rank} (${stats.lp}LP)`, inline: true },
+          { name: '🏅 티어', value: stats.tierSource === 'manual' ? `${tierLabel} (수동 보정)` : tierLabel, inline: true },
           { name: '🗺️ 주 라인', value: stats.mainLane, inline: true },
           { name: '📈 승률', value: `${stats.winRate}%`, inline: true },
           { name: '⚔️ 평균 KDA', value: `${stats.avgKDA}`, inline: true },

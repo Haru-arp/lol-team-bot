@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const analyzer = require('../utils/analyzer');
 const matchmaker = require('../utils/matchmaker');
 const { getPrimaryAccountByDiscordId } = require('../utils/accounts');
+const { getTierOverrideByPuuid } = require('../utils/tier');
 
 const TEST_PROFILES = [
   { riotId: 'TestTop#001', mainLane: 'TOP', subLane: 'MID', playStyle: 'tank', scoreDelta: -0.18 },
@@ -47,7 +48,8 @@ module.exports = {
 
       await message.reply('🧪 테스트 팀을 생성 중입니다...');
 
-      const analysis = await analyzer.analyzePlayer(account.puuid);
+      const tierOverride = await getTierOverrideByPuuid(account.puuid);
+      const analysis = await analyzer.analyzePlayer(account.puuid, { tierOverride });
       const realPlayer = {
         discordId: message.author.id,
         riotId: account.riot_id,
