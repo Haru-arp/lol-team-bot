@@ -1,3 +1,5 @@
+const { PermissionsBitField } = require('discord.js');
+const riot = require('../riot');
 const supabase = require('../supabase');
 const {
   getAccountByDiscordAndRiotId,
@@ -9,9 +11,10 @@ const {
   parseTierSettingArgs,
 } = require('../utils/tier');
 
-async function resolveTargetAccount(discordId, riotIdInput) {
+async function resolveTargetAccount(message, riotIdInput) {
   if (!riotIdInput) {
-    return getPrimaryAccountByDiscordId(discordId);
+    const account = await getPrimaryAccountByDiscordId(message.author.id);
+    return account ? { account, isOwnAccount: true } : null;
   }
 
   const parsed = parseRiotIdInput(riotIdInput);
@@ -19,12 +22,27 @@ async function resolveTargetAccount(discordId, riotIdInput) {
     return { error: '❌ Riot ID 형식은 `소환사명#태그`여야 합니다.' };
   }
 
-  const account = await getAccountByDiscordAndRiotId(discordId, parsed.riotId);
-  if (!account) {
-    return { error: '❌ 해당 계정은 내 연동 목록에 없습니다. `!연동목록`으로 확인하세요.' };
+  const ownAccount = await getAccountByDiscordAndRiotId(message.author.id, parsed.riotId);
+  if (ownAccount) {
+    return { account: ownAccount, isOwnAccount: true };
   }
 
-  return account;
+  if (!message.guild || !message.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+    return { error: '❌ 다른 사람 계정의 티어를 바꾸려면 서버 관리 권한이 필요합니다.' };
+  }
+
+  const riotAccount = await riot.getAccountByRiotId(parsed.gameName, parsed.tagLine);
+  if (!riotAccount) {
+    return { error: '❌ 해당 Riot 계정을 찾을 수 없습니다.' };
+  }
+
+  return {
+    account: {
+      puuid: riotAccount.puuid,
+      riot_id: `${riotAccount.gameName || parsed.gameName}#${riotAccount.tagLine || parsed.tagLine}`,
+    },
+    isOwnAccount: false,
+  };
 }
 
 module.exports = {
@@ -37,13 +55,14 @@ module.exports = {
         return message.reply(parsed.error);
       }
 
-      const account = await resolveTargetAccount(message.author.id, parsed.riotIdInput);
-      if (account?.error) {
-        return message.reply(account.error);
+      const target = await resolveTargetAccount(message, parsed.riotIdInput);
+      if (target?.error) {
+        return message.reply(target.error);
       }
-      if (!account) {
+      if (!target?.account) {
         return message.reply('❌ 먼저 `!연동`으로 계정을 등록하고 대표 계정을 설정하세요.');
       }
+      const { account } = target;
 
       if (parsed.reset) {
         const { error } = await supabase
