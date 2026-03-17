@@ -31,8 +31,10 @@ const TIER_ALIASES = {
   PLATINUM: 'PLATINUM',
   플래티넘: 'PLATINUM',
   플레티넘: 'PLATINUM',
+  플레: 'PLATINUM',
   EMERALD: 'EMERALD',
   에메랄드: 'EMERALD',
+  에메: 'EMERALD',
   DIAMOND: 'DIAMOND',
   다이아: 'DIAMOND',
   다이아몬드: 'DIAMOND',
@@ -40,9 +42,11 @@ const TIER_ALIASES = {
   마스터: 'MASTER',
   GRANDMASTER: 'GRANDMASTER',
   그랜드마스터: 'GRANDMASTER',
+  그마: 'GRANDMASTER',
   GM: 'GRANDMASTER',
   CHALLENGER: 'CHALLENGER',
   챌린저: 'CHALLENGER',
+  챌: 'CHALLENGER',
 };
 
 const DIVISION_ALIASES = {

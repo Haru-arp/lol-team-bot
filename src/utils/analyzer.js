@@ -2,6 +2,7 @@ const riot = require('../riot');
 const { CURRENT_SEASON_START } = require('../config');
 const { DIV_BONUS, TIER_POINTS, resolveTierInfo } = require('./tier');
 const LANE_MAP = { TOP: 'TOP', JUNGLE: 'JG', MIDDLE: 'MID', BOTTOM: 'ADC', UTILITY: 'SUP' };
+const RANKED_SOLO_QUEUE_ID = 420;
 
 function getSeasonStartTimestamp() {
   if (CURRENT_SEASON_START) {
@@ -15,7 +16,7 @@ function getSeasonStartTimestamp() {
   return Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
 }
 
-async function getSeasonRankedMatchIds(puuid, startTime, maxMatches = 300) {
+async function getSeasonSoloRankedMatchIds(puuid, startTime, maxMatches = 300) {
   const pageSize = 100;
   const maxPages = Math.ceil(maxMatches / pageSize);
   const ids = [];
@@ -25,7 +26,7 @@ async function getSeasonRankedMatchIds(puuid, startTime, maxMatches = 300) {
       start: page * pageSize,
       count: Math.min(pageSize, maxMatches - ids.length),
       startTime,
-      type: 'ranked',
+      queue: RANKED_SOLO_QUEUE_ID,
     });
 
     if (!batch?.length) break;
@@ -79,10 +80,10 @@ async function analyzePlayer(puuid, options = {}) {
 
   let seasonTopChampions = [];
   let seasonMatchCount = 0;
-  let hasRecentRankedMatches = false;
+  let hasRecentSoloRankedMatches = false;
   if (options.includeSeasonTopChampions) {
     const seasonStartTime = Math.floor(getSeasonStartTimestamp() / 1000);
-    const seasonMatchIds = await getSeasonRankedMatchIds(
+    const seasonMatchIds = await getSeasonSoloRankedMatchIds(
       puuid,
       seasonStartTime,
       options.seasonMatchCount ?? 300,
@@ -103,8 +104,11 @@ async function analyzePlayer(puuid, options = {}) {
       .map(([name, count]) => ({ name, count }));
 
     if (!seasonMatchCount) {
-      const recentRankedMatchIds = await riot.getMatchIds(puuid, { count: 20, type: 'ranked' });
-      hasRecentRankedMatches = Boolean(recentRankedMatchIds?.length);
+      const recentSoloRankedMatchIds = await riot.getMatchIds(puuid, {
+        count: 20,
+        queue: RANKED_SOLO_QUEUE_ID,
+      });
+      hasRecentSoloRankedMatches = Boolean(recentSoloRankedMatchIds?.length);
     }
   }
 
@@ -142,7 +146,7 @@ async function analyzePlayer(puuid, options = {}) {
     topChampions,
     seasonTopChampions,
     seasonMatchCount,
-    hasRecentRankedMatches,
+    hasRecentSoloRankedMatches,
     avgKDA, winRate, playStyle, score,
   };
 }

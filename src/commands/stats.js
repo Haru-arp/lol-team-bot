@@ -46,9 +46,9 @@ module.exports = {
         : '없음';
       const seasonTopChampions = stats.seasonTopChampions.length
         ? stats.seasonTopChampions.map((champion, index) => `${index + 1}. ${champion.name} (${champion.count}판)`).join('\n')
-        : stats.hasRecentRankedMatches
+        : stats.hasRecentSoloRankedMatches
           ? '집계 시즌 기준 확인 필요'
-          : '랭크 전적 없음';
+          : '솔랭 전적 없음';
       const tierLabel = formatTierDisplay(stats, { includeLp: stats.tierSource !== 'manual' });
 
       const embed = new EmbedBuilder()
@@ -61,7 +61,7 @@ module.exports = {
           { name: '⚔️ 평균 KDA', value: `${stats.avgKDA}`, inline: true },
           { name: '🗺️ 라인 분포', value: laneStr || '없음' },
           { name: '🏆 전체 모스트', value: topChampions, inline: true },
-          { name: '📅 이번 시즌 모스트', value: seasonTopChampions, inline: true },
+          { name: '📅 이번 시즌 솔랭 모스트', value: seasonTopChampions, inline: true },
           { name: '🎯 플레이 스타일', value: STYLE_EMOJI[stats.playStyle] || stats.playStyle },
           { name: '📊 종합 점수', value: `${stats.score}`, inline: true },
         );
