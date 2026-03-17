@@ -110,13 +110,11 @@ DISCORD_TOKEN=your_discord_bot_token
 RIOT_API_KEY=your_riot_api_key
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_anon_key
-CURRENT_SEASON_START=2026-01-01T00:00:00Z
 ```
 
 - **DISCORD_TOKEN** — [Discord Developer Portal](https://discord.com/developers/applications)에서 봇 생성 후 발급
 - **RIOT_API_KEY** — [Riot Developer Portal](https://developer.riotgames.com)에서 발급
 - **SUPABASE_URL / KEY** — [Supabase](https://supabase.com) 프로젝트 생성 후 Settings > API에서 확인
-- **CURRENT_SEASON_START** — 선택값, `!전적`의 이번 시즌 모스트 집계 시작 시각
 
 ## 데이터베이스 설정
 

@@ -1,43 +1,9 @@
 const riot = require('../riot');
-const { CURRENT_SEASON_START } = require('../config');
 const { DIV_BONUS, TIER_POINTS, resolveTierInfo } = require('./tier');
 const LANE_MAP = { TOP: 'TOP', JUNGLE: 'JG', MIDDLE: 'MID', BOTTOM: 'ADC', UTILITY: 'SUP' };
 const RANKED_SOLO_QUEUE_ID = 420;
 
-function getSeasonStartTimestamp() {
-  if (CURRENT_SEASON_START) {
-    const parsed = Date.parse(CURRENT_SEASON_START);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  const now = new Date();
-  return Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0, 0);
-}
-
-async function getSeasonSoloRankedMatchIds(puuid, startTime, maxMatches = 100) {
-  const pageSize = 100;
-  const maxPages = Math.ceil(maxMatches / pageSize);
-  const ids = [];
-
-  for (let page = 0; page < maxPages; page += 1) {
-    const batch = await riot.getMatchIds(puuid, {
-      start: page * pageSize,
-      count: Math.min(pageSize, maxMatches - ids.length),
-      startTime,
-      queue: RANKED_SOLO_QUEUE_ID,
-    });
-
-    if (!batch?.length) break;
-    ids.push(...batch);
-    if (batch.length < pageSize || ids.length >= maxMatches) break;
-  }
-
-  return ids;
-}
-
-async function getRecentSoloRankedMatchIds(puuid, maxMatches = 100) {
+async function getRecentSoloRankedMatchIds(puuid, maxMatches = 30) {
   const ids = await riot.getMatchIds(puuid, {
     count: maxMatches,
     queue: RANKED_SOLO_QUEUE_ID,
@@ -98,29 +64,21 @@ async function analyzePlayer(puuid, options = {}) {
       points: champion.championPoints,
     }));
 
-  let seasonTopChampions = [];
-  let seasonMatchCount = 0;
-  if (options.includeSeasonTopChampions) {
-    const seasonStartTime = Math.floor(getSeasonStartTimestamp() / 1000);
-    let seasonMatchIds = await getSeasonSoloRankedMatchIds(
-      puuid,
-      seasonStartTime,
-      options.seasonMatchCount ?? 100,
-    );
-    if (!seasonMatchIds.length) {
-      seasonMatchIds = await getRecentSoloRankedMatchIds(puuid, options.seasonMatchCount ?? 100);
-    }
-    seasonMatchCount = seasonMatchIds.length;
-    const seasonMatches = (await Promise.all((seasonMatchIds || []).map((id) => riot.getMatch(id)))).filter(Boolean);
-    const seasonChampionCounts = {};
+  let recentSoloTopChampions = [];
+  let recentSoloMatchCount = 0;
+  if (options.includeRecentSoloTopChampions) {
+    const recentSoloMatchIds = await getRecentSoloRankedMatchIds(puuid, options.recentSoloMatchCount ?? 30);
+    recentSoloMatchCount = recentSoloMatchIds.length;
+    const recentSoloMatches = (await Promise.all((recentSoloMatchIds || []).map((id) => riot.getMatch(id)))).filter(Boolean);
+    const recentSoloChampionCounts = {};
 
-    seasonMatches.forEach((match) => {
+    recentSoloMatches.forEach((match) => {
       const participant = match.info.participants.find((player) => player.puuid === puuid);
       if (!participant?.championName) return;
-      seasonChampionCounts[participant.championName] = (seasonChampionCounts[participant.championName] || 0) + 1;
+      recentSoloChampionCounts[participant.championName] = (recentSoloChampionCounts[participant.championName] || 0) + 1;
     });
 
-    seasonTopChampions = Object.entries(seasonChampionCounts)
+    recentSoloTopChampions = Object.entries(recentSoloChampionCounts)
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 3)
       .map(([name, count]) => ({ name, count }));
@@ -159,8 +117,8 @@ async function analyzePlayer(puuid, options = {}) {
     tierSource,
     topChampions,
     recentTopChampions,
-    seasonTopChampions,
-    seasonMatchCount,
+    recentSoloTopChampions,
+    recentSoloMatchCount,
     avgKDA, winRate, playStyle, score,
   };
 }
