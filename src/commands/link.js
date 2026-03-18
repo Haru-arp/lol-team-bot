@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const riot = require('../riot');
 const supabase = require('../supabase');
+const analyzer = require('../utils/analyzer');
 const {
   getAccountByPuuid,
   listAccountsByDiscordId,
@@ -59,6 +60,30 @@ module.exports = {
         .setColor(0x00ff00)
         .setTitle('✅ 계정 연동 완료')
         .setDescription(`**${riotId}** 계정이 연동되었습니다.${accounts.length === 0 ? '\n이 계정이 대표 계정으로 설정되었습니다.' : ''}`);
+
+      // 첫 연동 시 라인 선호도 자동 설정
+      if (accounts.length === 0) {
+        const { data: existingPref } = await supabase
+          .from('lane_preferences')
+          .select('discord_id')
+          .eq('discord_id', message.author.id)
+          .maybeSingle();
+
+        if (!existingPref) {
+          try {
+            const stats = await analyzer.analyzePlayer(account.puuid);
+            const sorted = Object.entries(stats.laneStats).sort((a, b) => b[1] - a[1]);
+            if (sorted.length >= 2) {
+              await supabase.from('lane_preferences').upsert({
+                discord_id: message.author.id,
+                primary_lane: sorted[0][0],
+                secondary_lane: sorted[1][0],
+              }, { onConflict: 'discord_id' });
+              embed.setDescription(embed.data.description + `\n🗺️ 선호 라인이 **${sorted[0][0]}** / **${sorted[1][0]}** 으로 자동 설정되었습니다.`);
+            }
+          } catch (_) { /* 라인 자동 설정 실패해도 연동은 유지 */ }
+        }
+      }
 
       return message.reply({ embeds: [embed] });
     } catch (e) {
