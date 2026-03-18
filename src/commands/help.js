@@ -2,7 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
   name: '도움말',
-  aliases: ['명령어'],
+  aliases: ['명령어', 'help'],
   async execute(message) {
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
