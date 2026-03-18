@@ -15,6 +15,7 @@ function sleep(ms) {
 
 function formatTeamMember(player, userMap) {
   const riotId = userMap.get(player.discordId)?.riot_id || player.discordId;
+  if (player.discordId.startsWith('ext_')) return `**${player.assignedLane}** - ${riotId}`;
   return `**${player.assignedLane}** - <@${player.discordId}> (${riotId})`;
 }
 
@@ -104,6 +105,8 @@ function buildBanRecommendations(team, opponent, playerMap) {
 module.exports = {
   name: '내전',
   activeLobbies,
+  lobbyEmbed,
+  lobbyButtons,
 
   async execute(message) {
     if (activeLobbies.has(message.guild.id)) {
@@ -147,25 +150,39 @@ module.exports = {
       await interaction.deferUpdate();
       await interaction.editReply({ content: '🔍 전적 분석 중... 잠시만 기다려주세요.', embeds: [], components: [] });
 
-      const ids = [...lobby.participants.keys()];
+      // 외부 참가자와 연동 참가자 분리
+      const externalParticipants = [];
+      const linkedIds = [];
+      for (const [key, p] of lobby.participants) {
+        if (p.isExternal) externalParticipants.push(p);
+        else linkedIds.push(key);
+      }
+
       const { data: users } = await supabase
         .from('users')
         .select('discord_id, puuid, riot_id')
-        .in('discord_id', ids)
+        .in('discord_id', linkedIds)
         .eq('is_primary', true);
 
-      if (!users || users.length < 10) {
-        return interaction.editReply({ content: '❌ 모든 참가자가 `!연동`을 완료하고 대표 계정을 설정해야 합니다.' });
+      const linkedCount = (users || []).length;
+      if (linkedCount + externalParticipants.length < 10) {
+        return interaction.editReply({ content: '❌ 연동되지 않은 참가자가 있습니다. `!연동`을 완료하거나 `!참가인원추가`로 추가하세요.' });
       }
 
-      // Fetch lane preferences
-      const { data: lanePrefs } = await supabase.from('lane_preferences').select('*').in('discord_id', ids);
+      // 모든 참가자의 puuid 목록 (연동 + 외부)
+      const allUsers = [
+        ...(users || []),
+        ...externalParticipants.map(p => ({ discord_id: p.id, puuid: p.puuid, riot_id: p.riotId })),
+      ];
+
+      // Fetch lane preferences (외부 참가자는 DB에 없으므로 연동 유저만)
+      const { data: lanePrefs } = await supabase.from('lane_preferences').select('*').in('discord_id', linkedIds);
       const prefMap = new Map((lanePrefs || []).map(p => [p.discord_id, p]));
-      const tierOverrides = await listTierOverridesByPuuids(users.map((user) => user.puuid));
+      const tierOverrides = await listTierOverridesByPuuids(allUsers.map((user) => user.puuid));
       const tierOverrideMap = new Map(tierOverrides.map((override) => [override.puuid, override]));
 
       // Analyze all players
-      const players = await Promise.all(users.map(async (u) => {
+      const players = await Promise.all(allUsers.map(async (u) => {
         const analysis = await analyzer.analyzePlayer(u.puuid, { tierOverride: tierOverrideMap.get(u.puuid) });
         const pref = prefMap.get(u.discord_id);
         return {
@@ -181,7 +198,7 @@ module.exports = {
       }));
 
       const result = matchmaker.findOptimalTeams(players);
-      const userMap = new Map(users.map((user) => [user.discord_id, user]));
+      const userMap = new Map(allUsers.map((user) => [user.discord_id, { ...user, riot_id: user.riot_id }]));
       const playerMap = new Map(players.map((player) => [player.discordId, player]));
 
       const formatTeam = (team) => team.map((player) => formatTeamMember(player, userMap)).join('\n');

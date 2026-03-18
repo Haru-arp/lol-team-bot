@@ -27,8 +27,8 @@ module.exports = {
     const losers = winSide === 'blue' ? match.team2 : match.team1;
 
     await Promise.all([
-      ...winners.map((p) => supabase.rpc('increment_wins', { p_discord_id: p.discord_id, p_guild_id: message.guild.id })),
-      ...losers.map((p) => supabase.rpc('increment_losses', { p_discord_id: p.discord_id, p_guild_id: message.guild.id })),
+      ...winners.filter((p) => !p.discord_id.startsWith('ext_')).map((p) => supabase.rpc('increment_wins', { p_discord_id: p.discord_id, p_guild_id: message.guild.id })),
+      ...losers.filter((p) => !p.discord_id.startsWith('ext_')).map((p) => supabase.rpc('increment_losses', { p_discord_id: p.discord_id, p_guild_id: message.guild.id })),
     ]);
 
     const embed = new EmbedBuilder()
