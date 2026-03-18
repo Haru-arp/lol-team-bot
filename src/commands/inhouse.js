@@ -185,12 +185,13 @@ module.exports = {
       const players = await Promise.all(allUsers.map(async (u) => {
         const analysis = await analyzer.analyzePlayer(u.puuid, { tierOverride: tierOverrideMap.get(u.puuid) });
         const pref = prefMap.get(u.discord_id);
+        const sortedLanes = Object.entries(analysis.laneStats).sort((a, b) => b[1] - a[1]);
         return {
           discordId: u.discord_id,
           riotId: u.riot_id,
           score: analysis.score,
-          mainLane: pref?.primary_lane || analysis.mainLane,
-          subLane: pref?.secondary_lane || null,
+          mainLane: pref?.primary_lane || sortedLanes[0]?.[0] || analysis.mainLane,
+          subLane: pref?.secondary_lane || sortedLanes[1]?.[0] || null,
           playStyle: analysis.playStyle,
           recentTopChampions: analysis.recentTopChampions,
           topChampions: analysis.topChampions,
