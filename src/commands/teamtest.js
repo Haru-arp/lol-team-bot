@@ -3,6 +3,7 @@ const analyzer = require('../utils/analyzer');
 const matchmaker = require('../utils/matchmaker');
 const { getPrimaryAccountByDiscordId } = require('../utils/accounts');
 const { getTierOverrideByPuuid } = require('../utils/tier');
+const LANE_DISPLAY_ORDER = { TOP: 0, JG: 1, MID: 2, ADC: 3, SUP: 4 };
 
 const TEST_PROFILES = [
   { riotId: 'TestTop#001', mainLane: 'TOP', subLane: 'MID', playStyle: 'tank', scoreDelta: -0.18 },
@@ -31,6 +32,14 @@ function formatMember(player, userMap) {
   }
 
   return `**${player.assignedLane}** - <@${player.discordId}> (${user.riotId})`;
+}
+
+function sortPlayersByLane(team) {
+  return [...team].sort((a, b) => {
+    const laneOrderDiff = (LANE_DISPLAY_ORDER[a.assignedLane] ?? 999) - (LANE_DISPLAY_ORDER[b.assignedLane] ?? 999);
+    if (laneOrderDiff !== 0) return laneOrderDiff;
+    return a.discordId.localeCompare(b.discordId);
+  });
 }
 
 module.exports = {
@@ -83,12 +92,12 @@ module.exports = {
         .addFields(
           {
             name: '🔵 블루팀',
-            value: result.team1.map((player) => formatMember(player, userMap)).join('\n'),
+            value: sortPlayersByLane(result.team1).map((player) => formatMember(player, userMap)).join('\n'),
             inline: true,
           },
           {
             name: '🔴 레드팀',
-            value: result.team2.map((player) => formatMember(player, userMap)).join('\n'),
+            value: sortPlayersByLane(result.team2).map((player) => formatMember(player, userMap)).join('\n'),
             inline: true,
           },
           {

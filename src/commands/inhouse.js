@@ -4,6 +4,7 @@ const analyzer = require('../utils/analyzer');
 const matchmaker = require('../utils/matchmaker');
 const voice = require('../utils/voice');
 const { listTierOverridesByPuuids } = require('../utils/tier');
+const LANE_DISPLAY_ORDER = { TOP: 0, JG: 1, MID: 2, ADC: 3, SUP: 4 };
 
 // guildId -> { hostId, participants: Map<userId, user>, messageId }
 const activeLobbies = new Map();
@@ -14,6 +15,14 @@ function formatTeamMember(player, userMap) {
   const riotId = userMap.get(player.discordId)?.riot_id || player.discordId;
   if (player.discordId.startsWith('ext_')) return `**${player.assignedLane}** - ${riotId}`;
   return `**${player.assignedLane}** - <@${player.discordId}> (${riotId})`;
+}
+
+function sortPlayersByLane(team) {
+  return [...team].sort((a, b) => {
+    const laneOrderDiff = (LANE_DISPLAY_ORDER[a.assignedLane] ?? 999) - (LANE_DISPLAY_ORDER[b.assignedLane] ?? 999);
+    if (laneOrderDiff !== 0) return laneOrderDiff;
+    return a.discordId.localeCompare(b.discordId);
+  });
 }
 
 function buildVoiceReadyMessage(blueVC, redVC) {
@@ -248,7 +257,7 @@ module.exports = {
       const userMap = new Map(allUsers.map((user) => [user.discord_id, { ...user, riot_id: user.riot_id }]));
       const playerMap = new Map(players.map((player) => [player.discordId, player]));
 
-      const formatTeam = (team) => team.map((player) => formatTeamMember(player, userMap)).join('\n');
+      const formatTeam = (team) => sortPlayersByLane(team).map((player) => formatTeamMember(player, userMap)).join('\n');
       const blueBanRecommendations = buildBanRecommendations(result.team1, result.team2, playerMap);
       const redBanRecommendations = buildBanRecommendations(result.team2, result.team1, playerMap);
 
