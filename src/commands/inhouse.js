@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const supabase = require('../supabase');
 const analyzer = require('../utils/analyzer');
 const matchmaker = require('../utils/matchmaker');
@@ -125,12 +125,12 @@ module.exports = {
 
   async handleButton(interaction) {
     const lobby = activeLobbies.get(interaction.guild.id);
-    if (!lobby) return interaction.reply({ content: '❌ 활성 로비가 없습니다.', ephemeral: true });
+    if (!lobby) return interaction.reply({ content: '❌ 활성 로비가 없습니다.', flags: MessageFlags.Ephemeral });
 
     const userId = interaction.user.id;
 
     if (interaction.customId === 'inhouse_join') {
-      if (lobby.participants.size >= 10) return interaction.reply({ content: '❌ 이미 10명입니다.', ephemeral: true });
+      if (lobby.participants.size >= 10) return interaction.reply({ content: '❌ 이미 10명입니다.', flags: MessageFlags.Ephemeral });
       lobby.participants.set(userId, { id: userId, displayName: interaction.user.displayName });
       await interaction.update({ embeds: [lobbyEmbed(lobby)], components: [lobbyButtons(lobby.hostId)] });
 
@@ -139,13 +139,13 @@ module.exports = {
       await interaction.update({ embeds: [lobbyEmbed(lobby)], components: [lobbyButtons(lobby.hostId)] });
 
     } else if (interaction.customId === 'inhouse_cancel') {
-      if (userId !== lobby.hostId) return interaction.reply({ content: '❌ 방장만 취소할 수 있습니다.', ephemeral: true });
+      if (userId !== lobby.hostId) return interaction.reply({ content: '❌ 방장만 취소할 수 있습니다.', flags: MessageFlags.Ephemeral });
       activeLobbies.delete(interaction.guild.id);
       await interaction.update({ content: '❌ 내전이 취소되었습니다.', embeds: [], components: [] });
 
     } else if (interaction.customId === 'inhouse_start') {
-      if (userId !== lobby.hostId) return interaction.reply({ content: '❌ 방장만 시작할 수 있습니다.', ephemeral: true });
-      if (lobby.participants.size < 10) return interaction.reply({ content: '❌ 최소 10명이 필요합니다.', ephemeral: true });
+      if (userId !== lobby.hostId) return interaction.reply({ content: '❌ 방장만 시작할 수 있습니다.', flags: MessageFlags.Ephemeral });
+      if (lobby.participants.size < 10) return interaction.reply({ content: '❌ 최소 10명이 필요합니다.', flags: MessageFlags.Ephemeral });
 
       await interaction.deferUpdate();
       await interaction.editReply({ content: '🔍 전적 분석 중... 잠시만 기다려주세요.', embeds: [], components: [] });
