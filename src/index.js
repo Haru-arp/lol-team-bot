@@ -15,7 +15,7 @@ const client = new Client({
 });
 
 const commands = new Map();
-const cmdFiles = ['help', 'link', 'accounts', 'primary', 'unlink', 'stats', 'inhouse', 'teamtest', 'voicetest', 'lane', 'tiersetting', 'result', 'ranking', 'addplayer', 'removeplayer', 'patchchannel'];
+const cmdFiles = ['help', 'link', 'accounts', 'primary', 'unlink', 'stats', 'inhouse', 'teamtest', 'voicetest', 'lane', 'tiersetting', 'result', 'ranking', 'addplayer', 'removeplayer', 'patchchannel', 'patchnote'];
 for (const file of cmdFiles) {
   const cmd = require(`./commands/${file}`);
   commands.set(cmd.name, cmd);
