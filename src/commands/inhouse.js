@@ -7,11 +7,8 @@ const { listTierOverridesByPuuids } = require('../utils/tier');
 
 // guildId -> { hostId, participants: Map<userId, user>, messageId }
 const activeLobbies = new Map();
-const VOICE_MOVE_DELAY_MS = 10_000;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const INHOUSE_RECENT_MATCH_COUNT = 8;
+const pendingVoiceMoves = new Map();
 
 function formatTeamMember(player, userMap) {
   const riotId = userMap.get(player.discordId)?.riot_id || player.discordId;
@@ -19,18 +16,11 @@ function formatTeamMember(player, userMap) {
   return `**${player.assignedLane}** - <@${player.discordId}> (${riotId})`;
 }
 
-function formatVoiceTeamList(team, userMap) {
-  return team.map((player) => formatTeamMember(player, userMap)).join('\n');
-}
-
-function buildVoiceCountdownMessage(blueVC, redVC, team1, team2, userMap, secondsLeft) {
+function buildVoiceReadyMessage(blueVC, redVC) {
   return [
-    `🔊 음성 채널을 준비했습니다. **${secondsLeft}초 뒤** 각각 ${blueVC} / ${redVC} 로 이동합니다.`,
-    '미리 아무 음성 채널에 들어가 있어야 이동됩니다.',
-    '',
-    `🔵 블루팀\n${formatVoiceTeamList(team1, userMap)}`,
-    '',
-    `🔴 레드팀\n${formatVoiceTeamList(team2, userMap)}`,
+    `🔊 음성 채널을 준비했습니다. 합의가 끝나면 버튼을 눌러 ${blueVC} / ${redVC} 로 이동하세요.`,
+    '팀 교체가 필요하면 먼저 조정한 뒤 이동 버튼을 누르세요.',
+    '이동 대상은 현재 팀 결과 기준이며, 음성 채널에 접속 중인 인원만 이동됩니다.',
   ].join('\n');
 }
 
@@ -49,6 +39,15 @@ function lobbyButtons(hostId) {
     new ButtonBuilder().setCustomId('inhouse_leave').setLabel('나가기').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('inhouse_start').setLabel('시작').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('inhouse_cancel').setLabel('취소').setStyle(ButtonStyle.Danger),
+  );
+}
+
+function moveButtonRow(moveToken) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`inhouse_move_${moveToken}`)
+      .setLabel('이동하기')
+      .setStyle(ButtonStyle.Primary),
   );
 }
 
@@ -105,6 +104,7 @@ function buildBanRecommendations(team, opponent, playerMap) {
 module.exports = {
   name: '내전',
   activeLobbies,
+  pendingVoiceMoves,
   lobbyEmbed,
   lobbyButtons,
 
@@ -124,6 +124,36 @@ module.exports = {
   },
 
   async handleButton(interaction) {
+    if (interaction.customId.startsWith('inhouse_move_')) {
+      const pendingMove = pendingVoiceMoves.get(interaction.guild.id);
+      if (!pendingMove) {
+        return interaction.reply({ content: '❌ 이동할 팀 정보가 없습니다.', flags: MessageFlags.Ephemeral });
+      }
+
+      const moveToken = interaction.customId.slice('inhouse_move_'.length);
+      if (pendingMove.token !== moveToken) {
+        return interaction.reply({ content: '❌ 이 이동 버튼은 더 이상 유효하지 않습니다.', flags: MessageFlags.Ephemeral });
+      }
+
+      if (interaction.user.id !== pendingMove.hostId) {
+        return interaction.reply({ content: '❌ 방장만 팀 이동을 실행할 수 있습니다.', flags: MessageFlags.Ephemeral });
+      }
+
+      const moveResult = await voice.moveTeamsToVoice(
+        interaction.guild,
+        pendingMove.team1,
+        pendingMove.team2,
+        pendingMove.channels,
+      );
+
+      pendingVoiceMoves.delete(interaction.guild.id);
+      await interaction.update({
+        content: `✅ 팀 이동을 시도했습니다. 현재 음성 채널에 접속해 있던 **${moveResult.movedCount}명**을 ${pendingMove.channels.blueVC} / ${pendingMove.channels.redVC} 로 이동했습니다.`,
+        components: [],
+      });
+      return;
+    }
+
     const lobby = activeLobbies.get(interaction.guild.id);
     if (!lobby) return interaction.reply({ content: '❌ 활성 로비가 없습니다.', flags: MessageFlags.Ephemeral });
 
@@ -182,8 +212,24 @@ module.exports = {
       const tierOverrideMap = new Map(tierOverrides.map((override) => [override.puuid, override]));
 
       // Analyze all players
+      let completedAnalyses = 0;
+      let lastProgressUpdate = 0;
       const players = await Promise.all(allUsers.map(async (u) => {
-        const analysis = await analyzer.analyzePlayer(u.puuid, { tierOverride: tierOverrideMap.get(u.puuid) });
+        const analysis = await analyzer.analyzePlayer(u.puuid, {
+          tierOverride: tierOverrideMap.get(u.puuid),
+          recentMatchCount: INHOUSE_RECENT_MATCH_COUNT,
+        });
+
+        completedAnalyses += 1;
+        if (completedAnalyses === allUsers.length || completedAnalyses - lastProgressUpdate >= 2) {
+          lastProgressUpdate = completedAnalyses;
+          await interaction.editReply({
+            content: `🔍 전적 분석 중... (${completedAnalyses}/${allUsers.length})`,
+            embeds: [],
+            components: [],
+          });
+        }
+
         const pref = prefMap.get(u.discord_id);
         const sortedLanes = Object.entries(analysis.laneStats).sort((a, b) => b[1] - a[1]);
         return {
@@ -233,26 +279,18 @@ module.exports = {
       activeLobbies.delete(interaction.guild.id);
 
       const channels = await voice.prepareTeamVoiceChannels(interaction.guild);
-      const countdownMessage = await interaction.followUp({
-        content: buildVoiceCountdownMessage(channels.blueVC, channels.redVC, result.team1, result.team2, userMap, VOICE_MOVE_DELAY_MS / 1000),
-        fetchReply: true,
+      const moveToken = `${Date.now()}`;
+      pendingVoiceMoves.set(interaction.guild.id, {
+        token: moveToken,
+        hostId: lobby.hostId,
+        team1: result.team1,
+        team2: result.team2,
+        channels,
       });
 
-      for (let secondsLeft = (VOICE_MOVE_DELAY_MS / 1000) - 1; secondsLeft >= 1; secondsLeft -= 1) {
-        await sleep(1000);
-        await countdownMessage.edit({
-          content: buildVoiceCountdownMessage(channels.blueVC, channels.redVC, result.team1, result.team2, userMap, secondsLeft),
-        });
-      }
-
-      await sleep(1000);
-      await countdownMessage.edit({
-        content: `🔊 ${channels.blueVC} / ${channels.redVC} 로 지금 이동합니다...`,
-      });
-
-      const moveResult = await voice.moveTeamsToVoice(interaction.guild, result.team1, result.team2, channels);
-      await countdownMessage.edit({
-        content: `✅ 팀 이동을 시도했습니다. 현재 음성 채널에 접속해 있던 **${moveResult.movedCount}명**을 ${channels.blueVC} / ${channels.redVC} 로 이동했습니다.`,
+      await interaction.followUp({
+        content: buildVoiceReadyMessage(channels.blueVC, channels.redVC),
+        components: [moveButtonRow(moveToken)],
       });
     }
   },

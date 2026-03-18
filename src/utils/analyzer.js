@@ -2,6 +2,7 @@ const riot = require('../riot');
 const { DIV_BONUS, TIER_POINTS, resolveTierInfo } = require('./tier');
 const LANE_MAP = { TOP: 'TOP', JUNGLE: 'JG', MIDDLE: 'MID', BOTTOM: 'ADC', UTILITY: 'SUP' };
 const RANKED_SOLO_QUEUE_ID = 420;
+const DEFAULT_RECENT_MATCH_COUNT = 20;
 
 async function getRecentSoloRankedMatchIds(puuid, maxMatches = 30) {
   const ids = await riot.getMatchIds(puuid, {
@@ -13,8 +14,9 @@ async function getRecentSoloRankedMatchIds(puuid, maxMatches = 30) {
 }
 
 async function analyzePlayer(puuid, options = {}) {
+  const recentMatchCount = options.recentMatchCount ?? DEFAULT_RECENT_MATCH_COUNT;
   const [matchIds, rankData, mastery, championNameMap] = await Promise.all([
-    riot.getMatchIds(puuid),
+    riot.getMatchIds(puuid, recentMatchCount),
     riot.getRankByPuuid(puuid),
     riot.getChampionMastery(puuid),
     riot.getChampionNameMap(),
