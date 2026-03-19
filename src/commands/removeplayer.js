@@ -3,21 +3,19 @@ const { activeLobbies, lobbyEmbed, lobbyButtons } = require('./inhouse');
 
 module.exports = {
   name: '참가인원제거',
-  async execute(message, args) {
-    const lobby = activeLobbies.get(message.guild.id);
-    if (!lobby) return message.reply('❌ 활성 로비가 없습니다.');
+  async execute(interaction) {
+    const lobby = activeLobbies.get(interaction.guild.id);
+    if (!lobby) return interaction.reply('❌ 활성 로비가 없습니다.');
 
-    // 멘션으로 제거
-    const mentionedUser = message.mentions.users.first();
+    const mentionedUser = interaction.options.getUser('유저');
+    const riotIdInput = interaction.options.getString('riot_id');
+
     if (mentionedUser) {
-      if (!lobby.participants.has(mentionedUser.id)) {
-        return message.reply('❌ 해당 유저는 참가자 목록에 없습니다.');
-      }
+      if (!lobby.participants.has(mentionedUser.id)) return interaction.reply('❌ 해당 유저는 참가자 목록에 없습니다.');
       lobby.participants.delete(mentionedUser.id);
-    } else {
-      // Riot ID로 제거 (외부 참가자)
-      const parsed = parseRiotIdInput(args.join(' '));
-      if (!parsed) return message.reply('❌ 형식: `!참가인원제거 @유저` 또는 `!참가인원제거 소환사명#태그`');
+    } else if (riotIdInput) {
+      const parsed = parseRiotIdInput(riotIdInput);
+      if (!parsed) return interaction.reply('❌ 형식: `소환사명#태그`');
 
       let found = false;
       for (const [key, p] of lobby.participants) {
@@ -27,14 +25,16 @@ module.exports = {
           break;
         }
       }
-      if (!found) return message.reply('❌ 해당 계정은 참가자 목록에 없습니다.');
+      if (!found) return interaction.reply('❌ 해당 계정은 참가자 목록에 없습니다.');
+    } else {
+      return interaction.reply('❌ 유저 또는 riot_id 중 하나를 입력하세요.');
     }
 
     try {
-      const lobbyMsg = await message.channel.messages.fetch(lobby.messageId);
+      const lobbyMsg = await interaction.channel.messages.fetch(lobby.messageId);
       if (lobbyMsg) await lobbyMsg.edit({ embeds: [lobbyEmbed(lobby)], components: [lobbyButtons(lobby.hostId)] });
     } catch (_) {}
 
-    message.reply(`✅ 참가자를 제거했습니다. (${lobby.participants.size}/10)`);
+    interaction.reply(`✅ 참가자를 제거했습니다. (${lobby.participants.size}/10)`);
   },
 };

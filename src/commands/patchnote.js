@@ -3,14 +3,13 @@ const { getLatestVersion, getPatchNote, PATCH_NOTES } = require('../utils/patchn
 
 module.exports = {
   name: '패치노트',
-  aliases: ['patchnote', 'patchnotes'],
-  async execute(message, args) {
-    const ver = args[0] || getLatestVersion();
+  async execute(interaction) {
+    const ver = interaction.options.getString('버전') || getLatestVersion();
     const note = getPatchNote(ver);
 
     if (!note) {
       const versions = Object.keys(PATCH_NOTES).join(', ');
-      return message.reply(`❌ 해당 버전의 패치노트가 없습니다. 사용 가능: ${versions}`);
+      return interaction.reply(`❌ 해당 버전의 패치노트가 없습니다. 사용 가능: ${versions}`);
     }
 
     const embed = new EmbedBuilder()
@@ -19,6 +18,6 @@ module.exports = {
       .setDescription(`**${note.title}**\n\n${note.changes.map(c => `• ${c}`).join('\n')}`)
       .setFooter({ text: note.date });
 
-    message.reply({ embeds: [embed] });
+    interaction.reply({ embeds: [embed] });
   },
 };

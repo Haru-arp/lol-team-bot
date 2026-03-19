@@ -3,12 +3,10 @@ const { listAccountsByDiscordId } = require('../utils/accounts');
 
 module.exports = {
   name: '연동목록',
-  async execute(message) {
+  async execute(interaction) {
     try {
-      const accounts = await listAccountsByDiscordId(message.author.id);
-      if (!accounts.length) {
-        return message.reply('❌ 등록된 계정이 없습니다. 먼저 `!연동 소환사명#태그`를 사용하세요.');
-      }
+      const accounts = await listAccountsByDiscordId(interaction.user.id);
+      if (!accounts.length) return interaction.reply('❌ 등록된 계정이 없습니다. `/연동`으로 등록하세요.');
 
       const lines = accounts.map((account, index) => {
         const marker = account.is_primary ? '⭐ 대표' : `${index + 1}.`;
@@ -20,10 +18,10 @@ module.exports = {
         .setTitle('📋 연동 계정 목록')
         .setDescription(lines.join('\n'));
 
-      return message.reply({ embeds: [embed] });
+      return interaction.reply({ embeds: [embed] });
     } catch (error) {
       console.error(error);
-      return message.reply('❌ 연동 계정 목록을 불러오지 못했습니다.');
+      return interaction.reply('❌ 연동 계정 목록을 불러오지 못했습니다.');
     }
   },
 };

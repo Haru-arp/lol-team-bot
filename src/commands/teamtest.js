@@ -17,99 +17,62 @@ const TEST_PROFILES = [
   { riotId: 'TestAdc#009', mainLane: 'ADC', subLane: 'SUP', playStyle: 'carry', scoreDelta: -0.03 },
 ];
 
-function clampScore(score) {
-  return Math.max(0.5, +(score.toFixed(2)));
-}
+function clampScore(score) { return Math.max(0.5, +(score.toFixed(2))); }
 
 function formatMember(player, userMap) {
   const user = userMap.get(player.discordId);
-  if (!user) {
-    return `**${player.assignedLane}** - ${player.discordId}`;
-  }
-
-  if (user.isDummy) {
-    return `**${player.assignedLane}** - ${user.riotId}`;
-  }
-
+  if (!user) return `**${player.assignedLane}** - ${player.discordId}`;
+  if (user.isDummy) return `**${player.assignedLane}** - ${user.riotId}`;
   return `**${player.assignedLane}** - <@${player.discordId}> (${user.riotId})`;
 }
 
 function sortPlayersByLane(team) {
-  return [...team].sort((a, b) => {
-    const laneOrderDiff = (LANE_DISPLAY_ORDER[a.assignedLane] ?? 999) - (LANE_DISPLAY_ORDER[b.assignedLane] ?? 999);
-    if (laneOrderDiff !== 0) return laneOrderDiff;
-    return a.discordId.localeCompare(b.discordId);
-  });
+  return [...team].sort((a, b) => (LANE_DISPLAY_ORDER[a.assignedLane] ?? 999) - (LANE_DISPLAY_ORDER[b.assignedLane] ?? 999));
 }
 
 module.exports = {
   name: '팀테스트',
-  async execute(message) {
+  async execute(interaction) {
+    if (!interaction.guild) return interaction.reply('❌ 서버 안에서만 사용할 수 있습니다.');
+
+    const account = await getPrimaryAccountByDiscordId(interaction.user.id);
+    if (!account) return interaction.reply('❌ 먼저 `/연동`으로 계정을 등록하세요.');
+
+    await interaction.reply('🧪 테스트 팀을 생성 중입니다...');
+
     try {
-      if (!message.guild) {
-        return message.reply('❌ 서버 안에서만 사용할 수 있습니다.');
-      }
-
-      const account = await getPrimaryAccountByDiscordId(message.author.id);
-      if (!account) {
-        return message.reply('❌ 먼저 `!연동`으로 계정을 등록하고 대표 계정을 설정하세요.');
-      }
-
-      await message.reply('🧪 테스트 팀을 생성 중입니다...');
-
       const tierOverride = await getTierOverrideByPuuid(account.puuid);
       const analysis = await analyzer.analyzePlayer(account.puuid, { tierOverride });
       const realPlayer = {
-        discordId: message.author.id,
-        riotId: account.riot_id,
-        score: analysis.score,
-        mainLane: analysis.mainLane,
-        subLane: 'MID',
-        playStyle: analysis.playStyle,
+        discordId: interaction.user.id, riotId: account.riot_id,
+        score: analysis.score, mainLane: analysis.mainLane, subLane: 'MID', playStyle: analysis.playStyle,
       };
 
-      const dummyPlayers = TEST_PROFILES.map((profile, index) => ({
-        discordId: `test-slot-${index + 1}`,
-        riotId: profile.riotId,
-        score: clampScore(realPlayer.score + profile.scoreDelta),
-        mainLane: profile.mainLane,
-        subLane: profile.subLane,
-        playStyle: profile.playStyle,
+      const dummyPlayers = TEST_PROFILES.map((p, i) => ({
+        discordId: `test-slot-${i + 1}`, riotId: p.riotId,
+        score: clampScore(realPlayer.score + p.scoreDelta),
+        mainLane: p.mainLane, subLane: p.subLane, playStyle: p.playStyle,
       }));
 
-      const players = [realPlayer, ...dummyPlayers];
-      const result = matchmaker.findOptimalTeams(players);
-
+      const result = matchmaker.findOptimalTeams([realPlayer, ...dummyPlayers]);
       const userMap = new Map([
-        [message.author.id, { riotId: account.riot_id, isDummy: false }],
-        ...dummyPlayers.map((player) => [player.discordId, { riotId: player.riotId, isDummy: true }]),
+        [interaction.user.id, { riotId: account.riot_id, isDummy: false }],
+        ...dummyPlayers.map(p => [p.discordId, { riotId: p.riotId, isDummy: true }]),
       ]);
 
       const embed = new EmbedBuilder()
         .setColor(0xf1c40f)
         .setTitle('🧪 테스트 팀 결과')
-        .setDescription('실제 참가자가 부족해 더미 슬롯 9명을 채워 미리보기한 결과입니다.')
+        .setDescription('더미 슬롯 9명을 채워 미리보기한 결과입니다.')
         .addFields(
-          {
-            name: '🔵 블루팀',
-            value: sortPlayersByLane(result.team1).map((player) => formatMember(player, userMap)).join('\n'),
-            inline: true,
-          },
-          {
-            name: '🔴 레드팀',
-            value: sortPlayersByLane(result.team2).map((player) => formatMember(player, userMap)).join('\n'),
-            inline: true,
-          },
-          {
-            name: '참고',
-            value: `내 계정: **${account.riot_id}**\n내 점수 기준으로 테스트 슬롯 점수를 비슷하게 생성했습니다.`,
-          },
+          { name: '🔵 블루팀', value: sortPlayersByLane(result.team1).map(p => formatMember(p, userMap)).join('\n'), inline: true },
+          { name: '🔴 레드팀', value: sortPlayersByLane(result.team2).map(p => formatMember(p, userMap)).join('\n'), inline: true },
         );
 
-      return message.channel.send({ embeds: [embed] });
+      interaction.editReply({ content: null, embeds: [embed] });
     } catch (error) {
       console.error(error);
-      return message.reply('❌ 테스트 팀 생성 중 오류가 발생했습니다.');
+      interaction.editReply('❌ 테스트 팀 생성 중 오류가 발생했습니다.');
     }
   },
 };
