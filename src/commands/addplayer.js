@@ -15,17 +15,19 @@ module.exports = {
     const parsed = parseRiotIdInput(input);
     if (!parsed) return interaction.reply('❌ 형식: `소환사명#태그`');
 
+    await interaction.deferReply();
+
     const account = await riot.getAccountByRiotId(parsed.gameName, parsed.tagLine);
-    if (!account) return interaction.reply('❌ 해당 Riot 계정을 찾을 수 없습니다.');
+    if (!account) return interaction.editReply('❌ 해당 Riot 계정을 찾을 수 없습니다.');
 
     const riotId = `${account.gameName || parsed.gameName}#${account.tagLine || parsed.tagLine}`;
 
     for (const [, p] of lobby.participants) {
-      if (p.puuid === account.puuid) return interaction.reply('❌ 이미 참가 중인 계정입니다.');
+      if (p.puuid === account.puuid) return interaction.editReply('❌ 이미 참가 중인 계정입니다.');
     }
 
     const participantId = mentionedUser ? mentionedUser.id : `ext_${account.puuid}`;
-    if (lobby.participants.has(participantId)) return interaction.reply('❌ 이미 참가 중인 유저입니다.');
+    if (lobby.participants.has(participantId)) return interaction.editReply('❌ 이미 참가 중인 유저입니다.');
 
     lobby.participants.set(participantId, {
       id: participantId,
@@ -42,6 +44,6 @@ module.exports = {
     } catch (_) {}
 
     const voiceNote = mentionedUser ? '' : '\n⚠️ 디스코드 유저 지정 없이 추가되어 음성 채널 자동 이동이 불가합니다.';
-    interaction.reply(`✅ **${riotId}** 를 참가자로 추가했습니다. (${lobby.participants.size}/10)${voiceNote}`);
+    return interaction.editReply(`✅ **${riotId}** 를 참가자로 추가했습니다. (${lobby.participants.size}/10)${voiceNote}`);
   },
 };

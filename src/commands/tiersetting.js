@@ -47,15 +47,17 @@ module.exports = {
       const parsed = parseTierSettingArgs(tierArgs);
       if (parsed.error) return interaction.reply(parsed.error);
 
+      await interaction.deferReply();
+
       const target = await resolveTargetAccount(interaction, parsed.riotIdInput || riotIdInput);
-      if (target?.error) return interaction.reply(target.error);
-      if (!target?.account) return interaction.reply('❌ 먼저 `/연동`으로 계정을 등록하세요.');
+      if (target?.error) return interaction.editReply(target.error);
+      if (!target?.account) return interaction.editReply('❌ 먼저 `/연동`으로 계정을 등록하세요.');
       const { account } = target;
 
       if (parsed.reset) {
         const { error } = await supabase.from('tier_overrides').delete().eq('puuid', account.puuid);
         if (error) throw error;
-        return interaction.reply(`✅ **${account.riot_id}** 계정의 수동 티어 보정을 해제했습니다.`);
+        return interaction.editReply(`✅ **${account.riot_id}** 계정의 수동 티어 보정을 해제했습니다.`);
       }
 
       const { error } = await supabase.from('tier_overrides').upsert({
@@ -67,10 +69,10 @@ module.exports = {
       }, { onConflict: 'puuid' });
       if (error) throw error;
 
-      return interaction.reply(`✅ **${account.riot_id}** 계정의 수동 티어를 **${formatTierDisplay(parsed, { includeLp: false })}** 로 저장했습니다.`);
+      return interaction.editReply(`✅ **${account.riot_id}** 계정의 수동 티어를 **${formatTierDisplay(parsed, { includeLp: false })}** 로 저장했습니다.`);
     } catch (error) {
       console.error(error);
-      return interaction.reply('❌ 티어 설정에 실패했습니다.');
+      return interaction.editReply('❌ 티어 설정에 실패했습니다.');
     }
   },
 };

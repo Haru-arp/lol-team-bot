@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, EmbedBuilder, MessageFlags } = require('discord.js');
 const { DISCORD_TOKEN } = require('./config');
 const supabase = require('./supabase');
 const { getLatestVersion, getPatchNote } = require('./utils/patchnotes');
@@ -43,7 +43,7 @@ client.on('interactionCreate', async (interaction) => {
     const reply = interaction.replied || interaction.deferred
       ? interaction.followUp.bind(interaction)
       : interaction.reply.bind(interaction);
-    reply({ content: '❌ 오류가 발생했습니다.', ephemeral: true }).catch(() => {});
+    reply({ content: '❌ 오류가 발생했습니다.', flags: MessageFlags.Ephemeral }).catch(() => {});
   }
 });
 

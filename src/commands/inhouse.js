@@ -107,9 +107,9 @@ module.exports = {
     const msg = await interaction.reply({
       embeds: [lobbyEmbed(lobby)],
       components: [lobbyButtons(lobby.hostId)],
-      fetchReply: true,
+      withResponse: true,
     });
-    lobby.messageId = msg.id;
+    lobby.messageId = msg.resource.message.id;
   },
 
   async handleButton(interaction) {

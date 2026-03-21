@@ -16,16 +16,18 @@ module.exports = {
     if (!parsed) return interaction.reply('❌ 형식: `소환사명#태그`');
 
     try {
+      await interaction.deferReply();
+
       const { gameName, tagLine } = parsed;
       const account = await riot.getAccountByRiotId(gameName, tagLine);
-      if (!account) return interaction.reply('❌ 계정을 찾을 수 없습니다.');
+      if (!account) return interaction.editReply('❌ 계정을 찾을 수 없습니다.');
 
       const summoner = await riot.getSummonerByPuuid(account.puuid);
       const riotId = `${account.gameName || gameName}#${account.tagLine || tagLine}`;
       const existing = await getAccountByPuuid(account.puuid);
 
       if (existing && existing.discord_id !== interaction.user.id) {
-        return interaction.reply('❌ 이미 다른 디스코드 계정에 연동된 Riot 계정입니다.');
+        return interaction.editReply('❌ 이미 다른 디스코드 계정에 연동된 Riot 계정입니다.');
       }
 
       if (existing && existing.discord_id === interaction.user.id) {
@@ -35,7 +37,7 @@ module.exports = {
           .eq('id', existing.id)
           .eq('discord_id', interaction.user.id);
         if (error) throw error;
-        return interaction.reply(`✅ 이미 연동된 계정입니다. Riot ID를 **${riotId}** 로 갱신했습니다.`);
+        return interaction.editReply(`✅ 이미 연동된 계정입니다. Riot ID를 **${riotId}** 로 갱신했습니다.`);
       }
 
       const accounts = await listAccountsByDiscordId(interaction.user.id);
@@ -77,10 +79,10 @@ module.exports = {
         }
       }
 
-      return interaction.reply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [embed] });
     } catch (e) {
       console.error(e);
-      return interaction.reply('❌ 계정 연동에 실패했습니다.');
+      return interaction.editReply('❌ 계정 연동에 실패했습니다.');
     }
   },
 };

@@ -11,25 +11,31 @@ module.exports = {
   async execute(interaction) {
     let puuid, riotId, tierOverride;
     const input = interaction.options.getString('riot_id');
+    let parsed = null;
 
     if (input) {
-      const parsed = parseRiotIdInput(input);
+      parsed = parseRiotIdInput(input);
       if (!parsed) return interaction.reply('❌ 형식: `소환사명#태그`');
-      const account = await riot.getAccountByRiotId(parsed.gameName, parsed.tagLine);
-      if (!account) return interaction.reply('❌ 해당 Riot 계정을 찾을 수 없습니다.');
-      puuid = account.puuid;
-      riotId = `${account.gameName || parsed.gameName}#${account.tagLine || parsed.tagLine}`;
-      tierOverride = await getTierOverrideByPuuid(puuid);
-    } else {
-      const account = await getPrimaryAccountByDiscordId(interaction.user.id);
-      if (!account) return interaction.reply('❌ 먼저 `/연동`으로 계정을 등록하세요.');
-      puuid = account.puuid;
-      riotId = account.riot_id;
-      tierOverride = await getTierOverrideByPuuid(puuid);
     }
 
     try {
-      await interaction.reply('🔍 전적 조회 중...');
+      await interaction.deferReply();
+
+      if (input) {
+        const account = await riot.getAccountByRiotId(parsed.gameName, parsed.tagLine);
+        if (!account) return interaction.editReply('❌ 해당 Riot 계정을 찾을 수 없습니다.');
+        puuid = account.puuid;
+        riotId = `${account.gameName || parsed.gameName}#${account.tagLine || parsed.tagLine}`;
+        tierOverride = await getTierOverrideByPuuid(puuid);
+      } else {
+        const account = await getPrimaryAccountByDiscordId(interaction.user.id);
+        if (!account) return interaction.editReply('❌ 먼저 `/연동`으로 계정을 등록하세요.');
+        puuid = account.puuid;
+        riotId = account.riot_id;
+        tierOverride = await getTierOverrideByPuuid(puuid);
+      }
+
+      await interaction.editReply('🔍 전적 조회 중...');
       const stats = await analyzer.analyzePlayer(puuid, { tierOverride, includeRecentSoloTopChampions: true });
       const laneStr = Object.entries(stats.laneStats).sort((a, b) => b[1] - a[1]).map(([l, p]) => `${l} ${p}%`).join(', ');
       const topChampions = stats.topChampions.length
@@ -53,10 +59,10 @@ module.exports = {
           { name: '📊 종합 점수', value: `${stats.score}`, inline: true },
         );
 
-      interaction.editReply({ content: null, embeds: [embed] });
+      return interaction.editReply({ content: null, embeds: [embed] });
     } catch (e) {
       console.error(e);
-      interaction.editReply('❌ 전적 조회에 실패했습니다.');
+      return interaction.editReply('❌ 전적 조회에 실패했습니다.');
     }
   },
 };
